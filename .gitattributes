@@ -1,0 +1,11 @@
+# Normalize to LF in the repository so Prettier and Ruff behave identically
+# on Windows checkouts and Linux CI runners.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
