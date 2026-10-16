@@ -13,7 +13,10 @@ export function SuggestedQuestion({ question, disabled, onSelect }: SuggestedQue
         disabled={disabled}
         onClick={() => onSelect(question)}
       >
-        {question}
+        <span className="suggested-question__text">{question}</span>
+        <span className="suggested-question__arrow" aria-hidden="true">
+          →
+        </span>
       </button>
     </li>
   );

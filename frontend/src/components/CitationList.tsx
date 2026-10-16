@@ -1,16 +1,10 @@
+import { EXPERIENCE_TYPE_LABEL } from './citationLabels';
 import type { Citation } from '../types/chat';
 
 interface CitationListProps {
   citations: Citation[];
   onSelect: (citation: Citation) => void;
 }
-
-const EXPERIENCE_LABEL: Record<Citation['experience_type'], string> = {
-  PROFESSIONAL: 'Professional',
-  PORTFOLIO: 'Portfolio',
-  EDUCATION: 'Education',
-  GENERAL: 'General',
-};
 
 export function CitationList({ citations, onSelect }: CitationListProps) {
   if (citations.length === 0) return null;
@@ -32,7 +26,7 @@ export function CitationList({ citations, onSelect }: CitationListProps) {
               <span className="citations__section">{citation.section}</span>
             </button>
             <span className={`badge badge--${citation.experience_type.toLowerCase()}`}>
-              {EXPERIENCE_LABEL[citation.experience_type]}
+              {EXPERIENCE_TYPE_LABEL[citation.experience_type]}
             </span>
           </li>
         ))}

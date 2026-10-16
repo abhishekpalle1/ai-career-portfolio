@@ -15,6 +15,11 @@ export function ChatMessage({ message, onSelectCitation, showFeedback }: ChatMes
   return (
     <div className={`chat-message chat-message--${message.role}`}>
       <span className="visually-hidden">{roleLabel}:</span>
+      {!isUser ? (
+        <span className="chat-message__badge" aria-hidden="true">
+          AI
+        </span>
+      ) : null}
       <div className="chat-message__bubble">
         {/* Rendered as plain text. Model output is never injected as HTML. */}
         {message.text.split('\n').map((line, index) =>

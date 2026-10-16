@@ -37,15 +37,69 @@ function mockFetchOnce(body: unknown, init: { ok?: boolean; status?: number } = 
 }
 
 describe('AI career assistant', () => {
-  it('renders the welcome message and all five suggested questions', () => {
+  it('renders the left-aligned Ask My AI heading and supporting sentence', () => {
     mockFetchOnce(MOCK_RESPONSE);
-    render(<AssistantSection />);
+    const { container } = render(<AssistantSection />);
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Ask My AI' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Get instant answers about my experience, projects, and more.'),
+    ).toBeInTheDocument();
+    expect(container.querySelector('.assistant__inner')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/career evidence assistant/i);
+    expect(container.querySelector('.section-label')).toBeNull();
+  });
+
+  it('renders a compact white header with aria-hidden decorative circles', () => {
+    mockFetchOnce(MOCK_RESPONSE);
+    const { container } = render(<AssistantSection />);
+    const header = container.querySelector('.chat-panel__header') as HTMLElement;
+
+    expect(within(header).getByText('AI Career Assistant')).toBeInTheDocument();
+    expect(within(header).getByText('Grounded in approved career materials')).toBeInTheDocument();
+    expect(container.querySelector('.chat-panel__dots')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelectorAll('.chat-panel__dots i')).toHaveLength(3);
+  });
+
+  it('renders the introductory message with an AI badge and all five questions', () => {
+    mockFetchOnce(MOCK_RESPONSE);
+    const { container } = render(<AssistantSection />);
 
     expect(screen.getByText(/I’m Abhishek’s AI career assistant/i)).toBeInTheDocument();
+    expect(container.querySelector('.chat-message__badge')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByText('Try asking:')).toBeInTheDocument();
     for (const question of suggestedQuestions) {
       expect(screen.getByRole('button', { name: question })).toBeInTheDocument();
     }
     expect(suggestedQuestions).toHaveLength(5);
+  });
+
+  it('renders the five questions in order as semantic one-per-row buttons', () => {
+    mockFetchOnce(MOCK_RESPONSE);
+    const { container } = render(<AssistantSection />);
+    const list = container.querySelector('.chat-panel__suggestions-list') as HTMLElement;
+    const items = Array.from(list.children);
+
+    expect(items).toHaveLength(5);
+    for (const [index, item] of items.entries()) {
+      expect(item.tagName).toBe('LI');
+      const button = item.querySelector('button') as HTMLButtonElement;
+      expect(button).toHaveAttribute('type', 'button');
+      expect(button).toHaveClass('suggested-question');
+      expect(button).toHaveTextContent(suggestedQuestions[index]!);
+    }
+  });
+
+  it('renders one conversation column with no permanent evidence panel', () => {
+    mockFetchOnce(MOCK_RESPONSE);
+    const { container } = render(<AssistantSection />);
+
+    expect(container.querySelector('.evidence, .chat-panel__body')).toBeNull();
+    expect(container.querySelectorAll('.chat-panel__transcript')).toHaveLength(1);
+    expect(container.textContent).not.toMatch(
+      /select a citation to inspect the supporting career evidence/i,
+    );
+    expect(container.textContent).not.toMatch(/^EVIDENCE$/m);
   });
 
   it('submits a suggested question, collapses suggestions, and renders the answer', async () => {
@@ -60,8 +114,9 @@ describe('AI career assistant', () => {
     await waitFor(() => expect(screen.getByText('Mock grounded answer.')).toBeInTheDocument());
 
     expect(screen.getByText(question)).toBeInTheDocument();
-    expect(screen.queryByText('Suggested questions')).not.toBeInTheDocument();
+    expect(screen.queryByText('Try asking:')).not.toBeInTheDocument();
     expect(screen.getByText('Follow-up questions')).toBeInTheDocument();
+    expect(screen.getByLabelText(/ask about abhishek’s experience/i)).toBeInTheDocument();
   });
 
   it('sends the typed question when the form is submitted with Enter', async () => {
@@ -85,18 +140,80 @@ describe('AI career assistant', () => {
     expect(input).toHaveAttribute('maxlength', '500');
   });
 
-  it('opens a citation drawer, closes it with Escape, and returns focus', async () => {
+  it('opens the citation drawer on selection and labels the experience type', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce(MOCK_RESPONSE);
+    const { container } = render(<AssistantSection />);
+
+    await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
+    const citationButton = await screen.findByRole('button', { name: /^Source 1:/ });
+    expect(container.querySelector('.badge--professional')).toHaveTextContent(
+      'Professional Experience',
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(citationButton);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('A bounded approved excerpt.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Resume (placeholder)')).toBeInTheDocument();
+  });
+
+  it('labels portfolio citations as Portfolio Project without relying on color', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce({
+      ...MOCK_RESPONSE,
+      citations: [
+        {
+          ...MOCK_RESPONSE.citations[0]!,
+          source_type: 'PORTFOLIO_PROJECT',
+          experience_type: 'PORTFOLIO',
+        },
+      ],
+    });
+    render(<AssistantSection />);
+
+    await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
+
+    expect(await screen.findByText('Portfolio Project')).toBeInTheDocument();
+  });
+
+  it('keeps a long citation excerpt inside the bounded drawer surface', async () => {
+    const user = userEvent.setup();
+    const longExcerpt = `Evidence${'Detail'.repeat(80)}`;
+    mockFetchOnce({
+      ...MOCK_RESPONSE,
+      citations: [{ ...MOCK_RESPONSE.citations[0]!, excerpt: longExcerpt }],
+    });
+    const { container } = render(<AssistantSection />);
+
+    await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
+    await user.click(await screen.findByRole('button', { name: /^Source 1:/ }));
+
+    expect(container.querySelector('.drawer__excerpt')).toHaveTextContent(longExcerpt);
+  });
+
+  it('keeps a long suggested question inside its full-width row', () => {
+    mockFetchOnce(MOCK_RESPONSE);
+    const { container } = render(<AssistantSection />);
+
+    for (const button of container.querySelectorAll('.suggested-question')) {
+      expect(button).toHaveClass('suggested-question');
+      expect(button.parentElement?.tagName).toBe('LI');
+    }
+  });
+
+  it('closes the citation drawer with Escape and returns focus to the trigger', async () => {
     const user = userEvent.setup();
     mockFetchOnce(MOCK_RESPONSE);
     render(<AssistantSection />);
 
     await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
     const citationButton = await screen.findByRole('button', { name: /^Source 1:/ });
-
     await user.click(citationButton);
+
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('A bounded approved excerpt.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Professional Experience')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Professional Experience').length).toBeGreaterThan(0);
 
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

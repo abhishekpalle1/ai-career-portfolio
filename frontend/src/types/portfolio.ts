@@ -1,47 +1,47 @@
-export type WorkType = 'professional' | 'portfolio';
-
 export interface Profile {
   fullName: string;
-  initials: string;
-  professionalTitle: string;
+  greeting: string;
   valueProposition: string;
-  /** Set to `null` until an availability statement has been approved. */
-  availabilityStatement: string | null;
-  photoUrl: string | null;
-  photoAlt: string;
+  valuePropositionEmphasis: string;
 }
 
-export interface CareerMetric {
+/**
+ * A compact hero credibility statement. Numeric values are published only when
+ * they are verified, approved, and traceable to at least one source ID.
+ */
+export interface HeroProofPoint {
   id: string;
-  value: string;
+  value?: string;
   label: string;
-  sourceId?: string;
-}
-
-export interface FeaturedWork {
-  id: string;
-  type: WorkType;
-  organization: string;
-  dateRange: string;
-  title: string;
-  role: string;
-  description: string;
-  impact?: string;
-  technologies: string[];
-  publicUrl?: string;
+  description?: string;
+  verified: boolean;
+  approved: boolean;
   sourceIds: string[];
 }
 
-export type ContactChannel = 'email' | 'linkedin' | 'github' | 'calendar';
+/** Approved professional employment only. Portfolio projects never belong here. */
+export interface ExperienceItem {
+  id: string;
+  organization: string;
+  organizationQualifier?: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  isInternship?: boolean;
+  role: string;
+  summary: string;
+  sourceIds: string[];
+  approved: boolean;
+}
+
+export type ContactChannel = 'email' | 'linkedin' | 'github';
 
 export interface ContactMethod {
   id: string;
   channel: ContactChannel;
   badge: string;
-  category: string;
-  /** Public display value, or a clearly marked placeholder. */
+  label: string;
   displayValue: string;
-  /** Omitted until a public URL has been configured. */
-  url?: string;
+  url: string;
   external: boolean;
 }

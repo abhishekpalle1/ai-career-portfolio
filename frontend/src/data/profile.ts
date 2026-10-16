@@ -8,15 +8,9 @@ import type { Profile } from '../types/portfolio';
  */
 export const profile: Profile = {
   fullName: 'Abhishek Palle',
-  initials: 'AP',
-  professionalTitle: 'Senior Data Scientist | ML/AI Engineer',
+  greeting: 'Hello, it’s',
   valueProposition:
-    'I build production AI and machine-learning systems spanning LLM applications, evaluation, intelligent workflows, and cloud deployment.',
-  // Confirm or set to `null` before publishing.
-  availabilityStatement: 'Open to relevant ML/AI opportunities',
-  // No likeness is generated. Supply a real photo URL or keep `null` to show initials.
-  photoUrl: null,
-  photoAlt: 'Professional headshot of Abhishek Palle',
+    'AI & ML Engineer building production-grade pipelines, ML systems, LLM applications, and data-driven analytics.',
+  /** Leading phrase of `valueProposition` rendered with emphasis. */
+  valuePropositionEmphasis: 'AI & ML Engineer',
 };
-
-export const resumeUrl: string = import.meta.env.VITE_RESUME_URL ?? '/resume.pdf';

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { EXPERIENCE_TYPE_LABEL } from './citationLabels';
 import type { Citation } from '../types/chat';
 
 interface CitationDrawerProps {
@@ -67,7 +68,7 @@ export function CitationDrawer({ citation, onClose }: CitationDrawerProps) {
           </div>
           <div>
             <dt>Experience type</dt>
-            <dd>{citation.experience_type.toLowerCase()}</dd>
+            <dd>{EXPERIENCE_TYPE_LABEL[citation.experience_type]}</dd>
           </div>
         </dl>
 

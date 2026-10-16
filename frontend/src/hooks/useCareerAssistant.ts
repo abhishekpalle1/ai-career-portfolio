@@ -5,7 +5,7 @@ import type { AssistantStatus, ChatMessage } from '../types/chat';
 import { suggestedQuestions } from '../data/suggestedQuestions';
 
 const UNAVAILABLE_MESSAGE =
-  'The AI assistant is temporarily unavailable. You can still explore Abhishek’s experience, projects, skills, and resume on this page.';
+  'The AI assistant is temporarily unavailable. You can still explore Abhishek’s experience and contact details on this page.';
 
 export const INITIAL_ASSISTANT_MESSAGE =
   'Hi! I’m Abhishek’s AI career assistant. Ask me about his professional experience, AI/ML projects, technical skills, education, or career background.';

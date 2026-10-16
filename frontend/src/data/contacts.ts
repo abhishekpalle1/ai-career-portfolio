@@ -6,60 +6,78 @@ export interface ContactEnv {
   githubUrl?: string;
 }
 
+const EMAIL_PATTERN = /^[^\s@[\]]+@[^\s@[\]]+\.[^\s@[\]]+$/;
+
 /**
- * Only public contact channels are ever exposed. Phone numbers, private email
- * addresses, home addresses, and employer contact details are out of scope.
- *
- * Channels without a configured value render as a clearly marked placeholder
- * rather than a broken link.
+ * Only configured public channels are ever exposed. Unconfigured, placeholder,
+ * or unsafe values are omitted entirely rather than rendered as dead links.
+ * Phone numbers, private email addresses, home addresses, and employer contact
+ * details are out of scope.
  */
 export function buildContactMethods(env: ContactEnv): ContactMethod[] {
-  const email = env.email?.trim();
-  const linkedInUrl = env.linkedInUrl?.trim();
-  const githubUrl = env.githubUrl?.trim();
+  const methods: ContactMethod[] = [];
 
-  return [
-    {
+  const email = env.email?.trim();
+  if (email && EMAIL_PATTERN.test(email)) {
+    methods.push({
       id: 'contact-email',
       channel: 'email',
       badge: '@',
-      category: 'Email',
-      displayValue: email ?? '[PUBLIC_EMAIL_TO_BE_PROVIDED]',
-      ...(email ? { url: `mailto:${email}` } : {}),
+      label: 'Email',
+      displayValue: email,
+      url: `mailto:${email}`,
       external: false,
-    },
-    {
-      id: 'contact-linkedin',
-      channel: 'linkedin',
-      badge: 'in',
-      category: 'LinkedIn',
-      displayValue: linkedInUrl ? displayHost(linkedInUrl) : '[LINKEDIN_URL_TO_BE_PROVIDED]',
-      ...(linkedInUrl ? { url: linkedInUrl } : {}),
+    });
+  }
+
+  const webChannels = [
+    { channel: 'linkedin', label: 'LinkedIn', badge: 'in', value: env.linkedInUrl },
+    { channel: 'github', label: 'GitHub', badge: '{ }', value: env.githubUrl },
+  ] as const;
+
+  for (const { channel, label, badge, value } of webChannels) {
+    const url = toPublicWebUrl(value);
+    if (!url) continue;
+    methods.push({
+      id: `contact-${channel}`,
+      channel,
+      badge,
+      label,
+      displayValue: displayHost(url),
+      url,
       external: true,
-    },
-    {
-      id: 'contact-github',
-      channel: 'github',
-      badge: '{ }',
-      category: 'GitHub',
-      displayValue: githubUrl ? displayHost(githubUrl) : '[GITHUB_URL_TO_BE_PROVIDED]',
-      ...(githubUrl ? { url: githubUrl } : {}),
-      external: true,
-    },
-  ];
+    });
+  }
+
+  return methods;
 }
 
-function displayHost(url: string): string {
+/** Rejects placeholders and every scheme other than http(s). */
+function toPublicWebUrl(value: string | undefined): string | null {
+  const candidate = value?.trim();
+  if (!candidate) return null;
   try {
-    const parsed = new URL(url);
-    return `${parsed.hostname}${parsed.pathname}`.replace(/\/$/, '');
+    const parsed = new URL(candidate);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.toString() : null;
   } catch {
-    return url;
+    return null;
   }
 }
 
+function displayHost(url: string): string {
+  const parsed = new URL(url);
+  return `${parsed.hostname}${parsed.pathname}`.replace(/\/$/, '');
+}
+
+/** Confirmed public profiles; env vars may override them per environment. */
+const PUBLIC_PROFILES = {
+  email: 'abhishekpalle1@gmail.com',
+  linkedInUrl: 'https://www.linkedin.com/in/apalle1',
+  githubUrl: 'https://github.com/apalle1',
+};
+
 export const contactMethods: ContactMethod[] = buildContactMethods({
-  email: import.meta.env.VITE_PUBLIC_EMAIL,
-  linkedInUrl: import.meta.env.VITE_LINKEDIN_URL,
-  githubUrl: import.meta.env.VITE_GITHUB_URL,
+  email: import.meta.env.VITE_PUBLIC_EMAIL || PUBLIC_PROFILES.email,
+  linkedInUrl: import.meta.env.VITE_LINKEDIN_URL || PUBLIC_PROFILES.linkedInUrl,
+  githubUrl: import.meta.env.VITE_GITHUB_URL || PUBLIC_PROFILES.githubUrl,
 });

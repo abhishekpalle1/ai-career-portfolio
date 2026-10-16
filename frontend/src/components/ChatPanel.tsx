@@ -39,10 +39,8 @@ export function ChatPanel() {
           <i />
           <i />
         </span>
-        <span className="chat-panel__header-text">
-          <strong>AI Career Assistant</strong>
-          <span>Grounded in Abhishek’s approved career materials</span>
-        </span>
+        <strong className="chat-panel__title">AI Career Assistant</strong>
+        <span className="chat-panel__grounding">Grounded in approved career materials</span>
       </div>
 
       <div
@@ -81,7 +79,7 @@ export function ChatPanel() {
         {showSuggestions ? (
           <div className="chat-panel__suggestions">
             <p className="chat-panel__suggestions-title" id="suggested-questions-label">
-              Suggested questions
+              Try asking:
             </p>
             <ul
               className="chat-panel__suggestions-list"
@@ -121,43 +119,45 @@ export function ChatPanel() {
         ) : null}
       </div>
 
-      <form
-        className="chat-panel__form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit(draft);
-        }}
-      >
-        <label className="visually-hidden" htmlFor="assistant-input">
-          Ask about Abhishek’s experience
-        </label>
-        <input
-          id="assistant-input"
-          className="chat-panel__input"
-          type="text"
-          value={draft}
-          maxLength={MAX_INPUT_CHARACTERS}
-          placeholder="Ask about Abhishek’s experience..."
-          autoComplete="off"
-          disabled={isLoading}
-          onChange={(event) => setDraft(event.target.value)}
-          aria-describedby="assistant-input-help"
-        />
-        <button
-          type="submit"
-          className="chat-panel__submit"
-          disabled={isLoading || draft.trim().length === 0}
-          aria-label="Send question"
+      <div className="chat-panel__footer">
+        <form
+          className="chat-panel__form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit(draft);
+          }}
         >
-          <span aria-hidden="true">→</span>
-        </button>
-      </form>
+          <label className="visually-hidden" htmlFor="assistant-input">
+            Ask about Abhishek’s experience
+          </label>
+          <input
+            id="assistant-input"
+            className="chat-panel__input"
+            type="text"
+            value={draft}
+            maxLength={MAX_INPUT_CHARACTERS}
+            placeholder="Ask about Abhishek’s experience..."
+            autoComplete="off"
+            disabled={isLoading}
+            onChange={(event) => setDraft(event.target.value)}
+            aria-describedby="assistant-input-help"
+          />
+          <button
+            type="submit"
+            className="chat-panel__submit"
+            disabled={isLoading || draft.trim().length === 0}
+            aria-label="Send question"
+          >
+            <span aria-hidden="true">→</span>
+          </button>
+        </form>
 
-      <p id="assistant-input-help" className="chat-panel__help">
-        {draft.length >= COUNTER_VISIBLE_FROM
-          ? `${draft.length} of ${MAX_INPUT_CHARACTERS} characters`
-          : 'Press Enter to send. Answers cite approved career sources.'}
-      </p>
+        <p id="assistant-input-help" className="chat-panel__help">
+          {draft.length >= COUNTER_VISIBLE_FROM
+            ? `${draft.length} of ${MAX_INPUT_CHARACTERS} characters`
+            : 'Press Enter to send. Answers cite approved career sources.'}
+        </p>
+      </div>
 
       <CitationDrawer citation={activeCitation} onClose={() => setActiveCitation(null)} />
     </div>
