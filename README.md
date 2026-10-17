@@ -3,8 +3,10 @@
 A recruiter-facing single-page portfolio with an AI career assistant that answers questions
 strictly from approved career materials, with clickable citations.
 
-**Current status: Phase 1 complete.** The frontend is fully built and the FastAPI backend serves
-**deterministic mock answers**. No OpenAI, Pinecone, GCP, or deployment integration exists yet.
+**Current status: Phase 2 complete (offline).** The frontend is fully built and the FastAPI backend
+serves **deterministic mock answers**. The approved résumé is converted to Markdown and an offline
+ingestion pipeline validates, chunks, and plans indexing. No live OpenAI or Pinecone call has been
+made yet, and the backend is not connected to retrieval.
 
 ---
 
@@ -29,7 +31,18 @@ strictly from approved career materials, with clickable citations.
 │   │   ├── models/           Pydantic request/response schemas
 │   │   └── services/         Deterministic mock assistant (replaced in Phase 3)
 │   └── tests/                Pytest
-├── .github/workflows/        Frontend and backend CI
+├── knowledge-base/           Approved Markdown sources with YAML front matter
+│   └── resume/resume.md
+├── ingestion/                Offline ingestion CLI (run from the repository root)
+│   ├── parsers/              Front matter + heading-aware Markdown parsing
+│   ├── validation/           Metadata validation and sensitive-content scanning
+│   ├── chunking/             Section-aware chunking, stable IDs, SHA-256 hashes
+│   ├── adapters/             OpenAI embedder and Pinecone store (live mode only)
+│   ├── pipelines/            Planning, apply, manifest, reports
+│   ├── state/                manifest.json, written only after a successful --apply
+│   ├── tests/                Pytest (no network)
+│   └── cli.py
+├── .github/workflows/        Frontend, backend, and ingestion CI
 ├── Makefile
 └── README.md
 ```
@@ -94,6 +107,56 @@ cd frontend; npm run build         # Production build
 cd backend; python -m pytest       # Pytest
 cd backend; python -m ruff check . # Ruff
 cd backend; python -m mypy         # MyPy (strict)
+
+# Ingestion (from the repository root)
+python -m pytest ingestion
+python -m ruff check ingestion
+python -m mypy --config-file ingestion/pyproject.toml ingestion
+```
+
+---
+
+## Knowledge base and ingestion
+
+Every file in `knowledge-base/` is Markdown with YAML front matter (`source_id`, `source_type`,
+`source_name`, `section`, `project_id`, `experience_type`, `visibility`, `approved`, `source_url`,
+`document_version`, `updated_at`, and optional `section_experience_types`, which maps `##`
+headings to `PROFESSIONAL`, `PORTFOLIO`, `EDUCATION`, or `GENERAL`).
+
+```powershell
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+python -m pip install -r ingestion/requirements-dev.txt
+
+python -m ingestion.cli validate   # Metadata, sensitive content, chunking. No outputs, no network.
+python -m ingestion.cli ingest     # Dry run: plan + reports in ingestion/output/ (gitignored)
+
+# Offline stateful check: writes a local manifest so a second run reports UNCHANGED.
+# Makes no embedding or Pinecone calls. Refuses the production manifest path.
+python -m ingestion.cli --manifest $env:TEMP\kb-state\manifest.json ingest --persist-manifest
+```
+
+Pipeline behavior:
+
+- Files with `approved: false` or `visibility: PRIVATE` are reported as skipped, never indexed
+- Any error (invalid metadata, phone number, email outside `PUBLIC_CONTACT`, secret, internal URL,
+  redaction placeholder, confidentiality marker, embedded instruction) fails the whole run.
+  Findings report the category and line, never the matched value
+- Chunks follow heading sections; each chunk is prefixed with its heading path, so a role, its
+  projects, and their metrics stay together. Long sections split only between whole bullets
+- `CHUNK_SIZE_TOKENS` (450) and `CHUNK_OVERLAP_TOKENS` (60) use an approximate offline token count
+- Chunk IDs derive from `source_id` + heading path; hashes cover chunk text and metadata
+- `ingestion/state/manifest.json` records what was upserted (IDs and hashes only, no text), so
+  re-runs embed only new or changed chunks. A different embedding model forces a full re-index
+
+Live indexing (not yet run) requires `pip install -r ingestion/requirements-live.txt`, an existing
+Pinecone index whose dimension matches the embedding model, and these environment variables:
+
+```powershell
+$env:ENABLE_LIVE_MODEL_CALLS = "true"
+$env:OPENAI_API_KEY = "..."; $env:OPENAI_EMBEDDING_MODEL = "..."
+$env:PINECONE_API_KEY = "..."; $env:PINECONE_INDEX = "career-portfolio"; $env:PINECONE_NAMESPACE = "production"
+python -m ingestion.cli ingest --apply                  # Upsert new/changed chunks
+python -m ingestion.cli ingest --apply --delete-stale   # Also delete removed chunks
 ```
 
 ---
@@ -151,7 +214,7 @@ approved source content is supplied.
 | Phase | Scope                               | Status      |
 | ----- | ----------------------------------- | ----------- |
 | 1     | Frontend + backend skeleton + mocks | Complete    |
-| 2     | Knowledge base and ingestion        | Not started |
+| 2     | Knowledge base and ingestion        | Complete (offline; live upsert not yet run) |
 | 3     | Live RAG pipeline                   | Not started |
 | 4     | Guardrails and cost controls        | Not started |
 | 5     | Evaluation framework                | Not started |

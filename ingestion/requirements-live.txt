@@ -1,0 +1,3 @@
+-r requirements.txt
+openai>=1.50
+pinecone>=5.0

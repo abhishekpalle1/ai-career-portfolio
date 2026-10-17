@@ -1,0 +1,27 @@
+name: ingestion-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['ingestion/**', 'knowledge-base/**', '.github/workflows/ingestion-ci.yml']
+  pull_request:
+    paths: ['ingestion/**', 'knowledge-base/**', '.github/workflows/ingestion-ci.yml']
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r ingestion/requirements-dev.txt
+      - run: python -m ruff check ingestion
+      - run: python -m ruff format --check ingestion
+      - run: python -m mypy --config-file ingestion/pyproject.toml ingestion
+      - run: python -m pytest ingestion
+      # Offline only: validates metadata, sensitive content, and chunking. No API keys in CI.
+      - run: python -m ingestion.cli validate

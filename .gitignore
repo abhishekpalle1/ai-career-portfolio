@@ -26,3 +26,7 @@ venv/
 Thumbs.db
 .idea/
 *.swp
+
+# Folders
+source-documents/
+ingestion/output/
