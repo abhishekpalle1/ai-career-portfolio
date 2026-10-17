@@ -1,0 +1,62 @@
+{
+  "manifest_version": 1,
+  "embedding_model": "gemini-embedding-2@1536d",
+  "pinecone_index": "career-portfolio",
+  "pinecone_namespace": "development",
+  "updated_at": "2026-10-17T15:45:03+00:00",
+  "offline": false,
+  "chunks": {
+    "resume-abhishek-palle-current--education--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "368e6661988219fc386fa72e098f61637030ac5960da70fce123f382ab95c4b3"
+    },
+    "resume-abhishek-palle-current--selected-projects--agentic-commercial-auto-underwriting--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "cb07950e9fc834b39fc9cea033f8504c60cadd6c8252205a96462911ebcd62cd"
+    },
+    "resume-abhishek-palle-current--selected-projects--policy-grounded-workers-compensation-claims-assistant--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "8a63b119d6344fff80ca456c402d8c284ac6626437f77e12810655badccb8904"
+    },
+    "resume-abhishek-palle-current--summary--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "42b74feb5c76a6b49ebfd73df39e0a786fc50d2143f70767ea8eefd2826b5ae4"
+    },
+    "resume-abhishek-palle-current--technical-skills--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "20de567f7173a9123b4754578039c9b8d9e61ce0aacfbe15aad7c2286535d89b"
+    },
+    "resume-abhishek-palle-current--work-experience--cna-insurance-senior-machine-learning-engineer-march-2021-present--agentic-llm-platform-for-underwriting-intelligence--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "d433b8930ca512cded9a00a52e3e0f790e647c8bc5e56d27bf32ebed45d42288"
+    },
+    "resume-abhishek-palle-current--work-experience--cna-insurance-senior-machine-learning-engineer-march-2021-present--explainable-fraud-detection-ranking-platform--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "f908c1bd1f6abc546cbff9a1f8ba4cb6f6530455faa5571690a07033bd4d9c98"
+    },
+    "resume-abhishek-palle-current--work-experience--cna-insurance-senior-machine-learning-engineer-march-2021-present--fine-tuned-bert-multi-label-classification-water-damage-claims--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "cbdc4ab064a9dc1b35a4e5d2e2e848f6037463f4c573c61e6bc0c1b1eea68f18"
+    },
+    "resume-abhishek-palle-current--work-experience--cna-insurance-senior-machine-learning-engineer-march-2021-present--llm-multi-label-text-classification-with-evidence-attribution-fire-loss-claims--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "8f9d2a4fda8f7b110d944965f6ee2503b81f84378521e3cb519b57dd56e3e2b5"
+    },
+    "resume-abhishek-palle-current--work-experience--cna-insurance-senior-machine-learning-engineer-march-2021-present--ml-pricing-system-vehicle-service-contracts--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "09094c8f690607abfe37c40aafedf2901c6aa60238cada2ba4059a9804e1c15b"
+    },
+    "resume-abhishek-palle-current--work-experience--eternal-robotics-machine-learning-engineer-july-2017-june-2018--edge-computer-vision-for-autonomous-painting--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "da6f22ac9d111f6e7c2af5ec5768e0973201b4f11b1f96494e4c3f3f4d8cd236"
+    },
+    "resume-abhishek-palle-current--work-experience--production-modeling-corporation-senior-data-scientist-july-2016-june-2017--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "642a24ec4ec4fec5d1cb8965b73a643d262549992a6d5861437082588644e2a8"
+    },
+    "resume-abhishek-palle-current--work-experience--stanley-black-decker-machine-learning-intern-may-2019-dec-2019--time-series-forecasting-and-industrial-anomaly-detection--001": {
+      "source_id": "resume-abhishek-palle-current",
+      "content_hash": "1aef1009c83cd7d6e8f8a85a2bd111b83d05a7b0a5972590370a8b26394fa4af"
+    }
+  }
+}

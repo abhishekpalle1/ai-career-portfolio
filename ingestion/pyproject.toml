@@ -19,5 +19,5 @@ strict = true
 exclude = ["(^|/)tests/"]
 
 [[tool.mypy.overrides]]
-module = ["openai", "openai.*", "pinecone", "pinecone.*"]
+module = ["google.genai", "google.genai.*", "pinecone", "pinecone.*"]
 ignore_missing_imports = true

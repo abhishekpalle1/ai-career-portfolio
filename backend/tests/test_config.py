@@ -96,3 +96,47 @@ def test_is_production_is_case_insensitive(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
+
+
+def test_live_rag_requires_both_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENABLE_LIVE_RAG", "true")
+    assert _settings_without_dotenv().live_rag_enabled is False
+
+    monkeypatch.setenv("ENABLE_LIVE_MODEL_CALLS", "true")
+    assert _settings_without_dotenv().live_rag_enabled is True
+
+
+def test_empty_optional_values_fall_back_to_defaults(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "MIN_RETRIEVAL_SCORE=\nMAX_CONTEXT_TOKENS=\nGEMINI_EMBEDDING_DIMENSIONS=\nGEMINI_API_KEY=\n",
+        encoding="utf-8",
+    )
+
+    settings = Settings(_env_file=env_file)
+
+    assert settings.min_retrieval_score is None
+    assert settings.max_context_tokens is None
+    assert settings.gemini_embedding_dimensions is None
+    assert settings.gemini_api_key is None
+    assert "GEMINI_API_KEY" in settings.missing_live_rag_settings()
+    assert "GEMINI_EMBEDDING_DIMENSIONS" in settings.missing_live_rag_settings()
+
+
+def test_openai_settings_are_not_required_or_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy-openai-value")
+
+    settings = _settings_without_dotenv()
+
+    assert not any(name.startswith("OPENAI") for name in settings.missing_live_rag_settings())
+    assert "dummy-openai-value" not in str(settings.model_dump())
+
+
+def test_secrets_are_hidden_from_repr(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-secret-value-123")
+    monkeypatch.setenv("PINECONE_API_KEY", "dummy-secret-value-456")
+
+    settings = _settings_without_dotenv()
+
+    assert "dummy-secret-value" not in repr(settings)
+    assert "dummy-secret-value" not in str(settings.model_dump())

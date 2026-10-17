@@ -294,9 +294,9 @@ def test_reports_are_written_without_secrets(
     kb_dir: Path, write_doc: WriteDoc, manifest_path: Path, tmp_path: Path
 ) -> None:
     write_doc("resume.md")
-    fake_key = "sk-test-not-a-real-key-000000000000"
+    fake_key = "not-a-real-gemini-key-000000000000"
     settings = Settings(
-        embedding_model="test-embedding-model", openai_api_key=fake_key, pinecone_api_key=fake_key
+        embedding_model="test-embedding-model", gemini_api_key=fake_key, pinecone_api_key=fake_key
     )
     result = run_ingestion(kb_dir, settings, manifest_path=manifest_path)
 

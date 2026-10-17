@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from ingestion.adapters.openai_embedder import OpenAIEmbedder
+from ingestion.adapters.gemini_embedder import GeminiEmbedder
 from ingestion.adapters.pinecone_store import PineconeVectorStore
 from ingestion.cli import main
 from ingestion.config import DEFAULT_MANIFEST_PATH, Settings
@@ -24,7 +24,7 @@ def no_live_adapters(monkeypatch: pytest.MonkeyPatch) -> None:
     def refuse(*_: object, **__: object) -> None:
         raise AssertionError("live adapter constructed during an offline run")
 
-    monkeypatch.setattr(OpenAIEmbedder, "from_settings", classmethod(refuse))
+    monkeypatch.setattr(GeminiEmbedder, "from_settings", classmethod(refuse))
     monkeypatch.setattr(PineconeVectorStore, "from_settings", classmethod(refuse))
 
 
@@ -102,7 +102,7 @@ def test_cli_offline_persist_never_goes_live_even_with_live_env(
 ) -> None:
     write_doc("resume.md")
     monkeypatch.setenv("ENABLE_LIVE_MODEL_CALLS", "true")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key-000000000000")
+    monkeypatch.setenv("GEMINI_API_KEY", "not-a-real-gemini-key-000000000000")
     monkeypatch.setenv("PINECONE_API_KEY", "not-a-real-key")
     manifest_path = tmp_path / "state" / "manifest.json"
     output_dir = tmp_path / "out"

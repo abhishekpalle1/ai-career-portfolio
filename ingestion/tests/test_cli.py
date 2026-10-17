@@ -63,7 +63,7 @@ def test_apply_is_refused_without_live_configuration(
     assert main(args) == 2
     error = capsys.readouterr().err
     assert "ENABLE_LIVE_MODEL_CALLS=true" in error
-    assert "OPENAI_API_KEY" in error
+    assert "GEMINI_API_KEY" in error
     assert "PINECONE_API_KEY" in error
 
 
@@ -81,7 +81,7 @@ def test_apply_is_refused_when_only_the_live_flag_is_set(
     assert main(args) == 2
     error = capsys.readouterr().err
     assert "ENABLE_LIVE_MODEL_CALLS" not in error
-    assert "OPENAI_EMBEDDING_MODEL" in error
+    assert "GEMINI_EMBEDDING_MODEL" in error
 
 
 def test_invalid_chunk_configuration(

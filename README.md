@@ -3,10 +3,10 @@
 A recruiter-facing single-page portfolio with an AI career assistant that answers questions
 strictly from approved career materials, with clickable citations.
 
-**Current status: Phase 2 complete (offline).** The frontend is fully built and the FastAPI backend
-serves **deterministic mock answers**. The approved résumé is converted to Markdown and an offline
-ingestion pipeline validates, chunks, and plans indexing. No live OpenAI or Pinecone call has been
-made yet, and the backend is not connected to retrieval.
+**Current status: Phase 4 complete.** The live Gemini + Pinecone RAG path is verified against the 13
+indexed résumé chunks and now runs behind deterministic input, retrieval, and output guardrails
+with rate limits and caching. The backend serves **deterministic mock answers** unless the live
+flags are enabled.
 
 ---
 
@@ -37,7 +37,7 @@ made yet, and the backend is not connected to retrieval.
 │   ├── parsers/              Front matter + heading-aware Markdown parsing
 │   ├── validation/           Metadata validation and sensitive-content scanning
 │   ├── chunking/             Section-aware chunking, stable IDs, SHA-256 hashes
-│   ├── adapters/             OpenAI embedder and Pinecone store (live mode only)
+│   ├── adapters/             Gemini embedder and Pinecone store (live mode only)
 │   ├── pipelines/            Planning, apply, manifest, reports
 │   ├── state/                manifest.json, written only after a successful --apply
 │   ├── tests/                Pytest (no network)
@@ -149,29 +149,76 @@ Pipeline behavior:
   re-runs embed only new or changed chunks. A different embedding model forces a full re-index
 
 Live indexing (not yet run) requires `pip install -r ingestion/requirements-live.txt`, an existing
-Pinecone index whose dimension matches the embedding model, and these environment variables:
+Pinecone index whose dimension equals `GEMINI_EMBEDDING_DIMENSIONS` (1536 for `career-portfolio`),
+and both `ENABLE_LIVE_MODEL_CALLS=true` and `ENABLE_LIVE_VECTOR_UPSERTS=true`. Settings can be
+read from `backend/.env` with `--env-file`; values are never printed.
+
+Model provider: Google Gemini Developer API (`google-genai`). Documents and queries are embedded
+with `GEMINI_EMBEDDING_MODEL` (`gemini-embedding-2`) using its retrieval text format
+(`title: none | text: …` for documents, `task: search result | query: …` for questions).
+Changing the embedding model or dimensions forces a full re-index.
 
 ```powershell
-$env:ENABLE_LIVE_MODEL_CALLS = "true"
-$env:OPENAI_API_KEY = "..."; $env:OPENAI_EMBEDDING_MODEL = "..."
-$env:PINECONE_API_KEY = "..."; $env:PINECONE_INDEX = "career-portfolio"; $env:PINECONE_NAMESPACE = "production"
-python -m ingestion.cli ingest --apply                  # Upsert new/changed chunks
-python -m ingestion.cli ingest --apply --delete-stale   # Also delete removed chunks
+python -m ingestion.cli --env-file backend/.env preflight                # No network, no writes
+python -m ingestion.cli --env-file backend/.env ingest --apply           # Upsert new/changed chunks
+python -m ingestion.cli --env-file backend/.env ingest --apply --delete-stale
 ```
 
 ---
 
-## API (Phase 1)
+## Live RAG (Phase 3)
 
-| Method | Path           | Description                                    |
-| ------ | -------------- | ---------------------------------------------- |
-| GET    | `/health`      | Liveness. Calls no paid dependency.            |
-| GET    | `/ready`       | Configuration checks, no secret values.        |
-| GET    | `/version`     | Application, corpus, and build identifiers.    |
-| POST   | `/api/v1/chat` | Deterministic mock answer with mock citations. |
+`POST /api/v1/chat` serves the deterministic mock unless **both** `ENABLE_LIVE_RAG` and
+`ENABLE_LIVE_MODEL_CALLS` are true. When live, each question makes at most one query embedding,
+one Pinecone query, and one generation call:
 
-The `/api/v1/chat` request and response shapes already match the final contract, so Phase 3 can
-replace the mock service without changing the frontend.
+- Deterministic intent classification; out-of-scope, contact, and resume requests make no paid calls
+- Pinecone query always filtered on `visibility=PUBLIC`, `approved=true`, `ingestion_status=VERIFIED`
+  in backend code, then re-verified per match along with provenance and safe `source_url`
+- Context: score-ordered, de-duplicated, capped by `FINAL_CONTEXT_CHUNKS` and optional
+  `MIN_RETRIEVAL_SCORE` / `MAX_CONTEXT_TOKENS` (left unset until Phase 5 evaluation)
+- Evidence is wrapped in `<retrieved_evidence>` as untrusted data; structured JSON output from
+  `GEMINI_GENERATION_MODEL` (`gemini-3.5-flash-lite`), validated against the response schema
+- Gemini clients are built with retries disabled; a failed call surfaces as an abstention or `503`
+- Unknown citations, uncited or unsupported claims, and professional/portfolio attribution
+  mismatches become a safe abstention. Dependency failures return a generic `503`
+- Logs record trace ID, intent, counts, outcome, and latency, never question text or secrets
+
+```powershell
+cd backend; python -m app.preflight   # No network, no writes; prints names and booleans only
+```
+
+---
+
+## Guardrails and cost controls (Phase 4)
+
+All guardrails are deterministic application code in `backend/app/guardrails/`; none adds a model call.
+
+| Stage | Control |
+| --- | --- |
+| Input | Blocks prompt injection and jailbreaks (including leetspeak, spaced, zero-width, URL/HTML-entity, and base64/hex-encoded forms), credential and prompt requests, vector-store dumps, fabrication requests, sensitive personal data, confidential employer data, HTML/script/file content, and off-topic tasks. Blocked requests get the scope message and make **no** paid call |
+| Retrieval | Drops retrieved chunks containing instructions aimed at the assistant before generation |
+| Prompt | `grounded-answer-v2`: absence of evidence is reported as "not documented", false premises are corrected from evidence, portfolio projects are never placed at an employer |
+| Output | `PASS` / `REPAIRABLE` / `FAIL`. Fails on secrets, prompt or metadata leakage, URLs/HTML, unsupported negative assertions ("has not worked at X"), and portfolio-at-employer attribution. Repairable: uncited numbers or bullets, over-long answers. Stray emails and phone numbers are redacted |
+| Retries | `MAX_GENERATION_RETRIES` (default `0`) applies only to repairable failures |
+| Limits | `MAX_QUESTIONS_PER_SESSION` and `MAX_QUESTIONS_PER_IP_PER_DAY` return `429` with `Retry-After`. `X-Forwarded-For` is ignored unless `TRUSTED_PROXY_HOPS` > 0 |
+| Cache | Bounded TTL LRU cache keyed by normalized question + corpus, models, dimensions, namespace, and prompt version. Only grounded, validated answers are cached |
+
+The frontend already treats `429` and `503` as "temporarily unavailable"; the static page keeps
+working.
+
+---
+
+## API
+
+| Method | Path           | Description                                                  |
+| ------ | -------------- | ------------------------------------------------------------ |
+| GET    | `/health`      | Liveness. Calls no paid dependency.                          |
+| GET    | `/ready`       | Configuration checks, no secret values.                      |
+| GET    | `/version`     | Application, corpus, and build identifiers.                  |
+| POST   | `/api/v1/chat` | Mock answer, or live grounded answer when live flags are on. |
+
+The request and response shapes are unchanged from Phase 1, so the frontend needs no changes.
 
 ---
 
@@ -214,9 +261,9 @@ approved source content is supplied.
 | Phase | Scope                               | Status      |
 | ----- | ----------------------------------- | ----------- |
 | 1     | Frontend + backend skeleton + mocks | Complete    |
-| 2     | Knowledge base and ingestion        | Complete (offline; live upsert not yet run) |
-| 3     | Live RAG pipeline                   | Not started |
-| 4     | Guardrails and cost controls        | Not started |
+| 2     | Knowledge base and ingestion        | Complete    |
+| 3     | Live RAG pipeline                   | Complete (Gemini + Pinecone, 13 chunks in `development`) |
+| 4     | Guardrails and cost controls        | Complete    |
 | 5     | Evaluation framework                | Not started |
 | 6     | Deployment                          | Not started |
 | 7     | Content and polish                  | Not started |

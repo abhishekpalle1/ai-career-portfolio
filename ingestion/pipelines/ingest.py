@@ -135,9 +135,9 @@ def build_plan(
         notes.append("Manifest targets a different index or namespace; treating target as empty.")
     else:
         previous = manifest.chunks
-        if settings.embedding_model is None or not manifest.embedding_model:
+        if settings.embedding_identity is None or not manifest.embedding_model:
             notes.append("Embedding model unknown; model-change detection skipped.")
-        elif manifest.embedding_model != settings.embedding_model:
+        elif manifest.embedding_model != settings.embedding_identity:
             full_reindex = True
             notes.append("Embedding model changed; every chunk will be re-embedded.")
 
@@ -193,7 +193,7 @@ def run_ingestion(
             manifest,
             settings,
             delete_stale=delete_stale,
-            embedding_model=settings.embedding_model or "",
+            embedding_model=settings.embedding_identity or "",
             offline=True,
         )
         return result

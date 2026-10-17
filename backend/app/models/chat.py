@@ -35,7 +35,7 @@ Intent = Literal[
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=DEFAULT_MAX_INPUT_CHARACTERS)
-    session_id: str | None = Field(default=None, max_length=64)
+    session_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class Citation(BaseModel):

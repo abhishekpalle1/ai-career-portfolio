@@ -23,6 +23,9 @@ def ready(settings: SettingsDep) -> ReadyResponse:
         "cors_allowlist_configured": len(settings.frontend_origins) > 0,
         "corpus_version_configured": bool(settings.corpus_version),
         "input_limit_configured": settings.max_input_characters > 0,
+        "live_rag_configuration_complete": (
+            not settings.live_rag_enabled or not settings.missing_live_rag_settings()
+        ),
     }
     return ReadyResponse(status="ready" if all(checks.values()) else "not_ready", checks=checks)
 
