@@ -1,0 +1,22 @@
+# Only pyproject.toml and app/ are needed in the image.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+tests/
+.coverage
+htmlcov/
+.git/
+.gitignore
+.gcloudignore
+.dockerignore
