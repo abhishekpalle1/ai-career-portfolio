@@ -140,57 +140,27 @@ describe('AI career assistant', () => {
     expect(input).toHaveAttribute('maxlength', '500');
   });
 
-  it('opens the citation drawer on selection and labels the experience type', async () => {
+  it('shows a clean answer with no citation markers, sources, or citation controls', async () => {
     const user = userEvent.setup();
-    mockFetchOnce(MOCK_RESPONSE);
+    mockFetchOnce({
+      ...MOCK_RESPONSE,
+      answer: 'Mock grounded answer [C1].\n- First point [C1, C3]\n- Second point [C1,C3]',
+    });
     const { container } = render(<AssistantSection />);
 
     await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
-    const citationButton = await screen.findByRole('button', { name: /^Source 1:/ });
-    expect(container.querySelector('.badge--professional')).toHaveTextContent(
-      'Professional Experience',
-    );
+
+    expect(await screen.findByText('Mock grounded answer.')).toBeInTheDocument();
+    expect(screen.getByText('First point')).toBeInTheDocument();
+    expect(screen.getByText('Second point')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\[\s*C\d/);
+    expect(screen.queryByText(/^Sources$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /source/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-
-    await user.click(citationButton);
-
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('A bounded approved excerpt.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Resume (placeholder)')).toBeInTheDocument();
-  });
-
-  it('labels portfolio citations as Portfolio Project without relying on color', async () => {
-    const user = userEvent.setup();
-    mockFetchOnce({
-      ...MOCK_RESPONSE,
-      citations: [
-        {
-          ...MOCK_RESPONSE.citations[0]!,
-          source_type: 'PORTFOLIO_PROJECT',
-          experience_type: 'PORTFOLIO',
-        },
-      ],
-    });
-    render(<AssistantSection />);
-
-    await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
-
-    expect(await screen.findByText('Portfolio Project')).toBeInTheDocument();
-  });
-
-  it('keeps a long citation excerpt inside the bounded drawer surface', async () => {
-    const user = userEvent.setup();
-    const longExcerpt = `Evidence${'Detail'.repeat(80)}`;
-    mockFetchOnce({
-      ...MOCK_RESPONSE,
-      citations: [{ ...MOCK_RESPONSE.citations[0]!, excerpt: longExcerpt }],
-    });
-    const { container } = render(<AssistantSection />);
-
-    await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
-    await user.click(await screen.findByRole('button', { name: /^Source 1:/ }));
-
-    expect(container.querySelector('.drawer__excerpt')).toHaveTextContent(longExcerpt);
+    expect(container.querySelector('.citations, .drawer, .badge--professional')).toBeNull();
+    expect(screen.queryByText('A bounded approved excerpt.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /as helpful/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'What technologies did he use?' })).toBeVisible();
   });
 
   it('keeps a long suggested question inside its full-width row', () => {
@@ -201,23 +171,6 @@ describe('AI career assistant', () => {
       expect(button).toHaveClass('suggested-question');
       expect(button.parentElement?.tagName).toBe('LI');
     }
-  });
-
-  it('closes the citation drawer with Escape and returns focus to the trigger', async () => {
-    const user = userEvent.setup();
-    mockFetchOnce(MOCK_RESPONSE);
-    render(<AssistantSection />);
-
-    await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
-    const citationButton = await screen.findByRole('button', { name: /^Source 1:/ });
-    await user.click(citationButton);
-
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getAllByText('Professional Experience').length).toBeGreaterThan(0);
-
-    await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(citationButton).toHaveFocus();
   });
 
   it('shows the graceful unavailable message when the backend cannot be reached', async () => {
@@ -248,21 +201,6 @@ describe('AI career assistant', () => {
       expect(screen.getByText(/<img src=x onerror="alert\(1\)">Injected/)).toBeInTheDocument(),
     );
     expect(container.querySelector('img')).toBeNull();
-  });
-
-  it('drops citations that use an unsafe URL scheme', async () => {
-    const user = userEvent.setup();
-    mockFetchOnce({
-      ...MOCK_RESPONSE,
-      citations: [{ ...MOCK_RESPONSE.citations[0]!, source_url: 'javascript:alert(1)' }],
-    });
-    render(<AssistantSection />);
-
-    await user.click(screen.getByRole('button', { name: suggestedQuestions[0]! }));
-    await user.click(await screen.findByRole('button', { name: /^Source 1:/ }));
-
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('renders an abstention notice when the assistant abstains', async () => {

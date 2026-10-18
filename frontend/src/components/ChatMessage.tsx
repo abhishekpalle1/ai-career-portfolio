@@ -1,16 +1,18 @@
-import { CitationList } from './CitationList';
 import { FeedbackControls } from './FeedbackControls';
-import type { ChatMessage as ChatMessageModel, Citation } from '../types/chat';
+import type { ChatMessage as ChatMessageModel } from '../types/chat';
+
+// Citations stay internal to the backend; markers such as [C1] or [C1, C3] are never shown.
+const CITATION_MARKER = /[ \t]*\[\s*C\d+(?:\s*,\s*C\d+)*\s*\]/g;
 
 interface ChatMessageProps {
   message: ChatMessageModel;
-  onSelectCitation: (citation: Citation) => void;
   showFeedback: boolean;
 }
 
-export function ChatMessage({ message, onSelectCitation, showFeedback }: ChatMessageProps) {
+export function ChatMessage({ message, showFeedback }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const roleLabel = isUser ? 'You asked' : 'Assistant answered';
+  const text = isUser ? message.text : message.text.replace(CITATION_MARKER, '');
 
   return (
     <div className={`chat-message chat-message--${message.role}`}>
@@ -22,7 +24,7 @@ export function ChatMessage({ message, onSelectCitation, showFeedback }: ChatMes
       ) : null}
       <div className="chat-message__bubble">
         {/* Rendered as plain text. Model output is never injected as HTML. */}
-        {message.text.split('\n').map((line, index) =>
+        {text.split('\n').map((line, index) =>
           line.trim().startsWith('- ') ? (
             <span key={index} className="chat-message__bullet">
               {line.trim().slice(2)}
@@ -38,10 +40,6 @@ export function ChatMessage({ message, onSelectCitation, showFeedback }: ChatMes
           <p className="chat-message__notice">
             Not enough approved evidence was available to answer this question.
           </p>
-        ) : null}
-
-        {!isUser ? (
-          <CitationList citations={message.citations} onSelect={onSelectCitation} />
         ) : null}
 
         {showFeedback ? <FeedbackControls messageId={message.id} /> : null}

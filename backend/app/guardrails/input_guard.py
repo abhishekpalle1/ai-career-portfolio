@@ -23,7 +23,13 @@ _LEET = str.maketrans(
     {"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}
 )
 
-# Shared with the retrieval guard: instructions aimed at the assistant.
+# Prompt-attack detection; any match in any family is PROMPT_INJECTION. contains_injection() also
+# screens retrieved chunks, so résumé terms alone (prompt engineering, prompts, instructions,
+# configuration, programming, guardrails) must never match: patterns need an attack verb or a
+# reference to the assistant itself. Overlap between families is intentional and harmless.
+
+# Manipulation: override, bypass, or replace the assistant's governing behavior (jailbreaks,
+# role replacement, injected instructions).
 INJECTION_PATTERNS = (
     re.compile(
         r"\b(ignore|disregard|forget|override|bypass)\b.{0,40}?"
@@ -31,7 +37,22 @@ INJECTION_PATTERNS = (
         r"\b(instructions?|rules?|prompts?|guidelines?|directions?|polic(y|ies))\b"
     ),
     re.compile(
-        r"\b(your|the assistant'?s?|this assistant'?s?)\s+"
+        r"\byou are now\b|\bpretend (to be|you are)\b|\bdeveloper mode\b|\bjailbreak\w*\b"
+        r"|\bdo anything now\b|\bdan mode\b|\bno (restrictions|rules|filters)\b|\bunfiltered\b"
+        r"|\bnew instructions?\b|\bfrom now on\b|\brole[- ]?play\b"
+    ),
+)
+
+_ASSISTANT = r"(you|the assistant|this assistant|the bot|the chatbot|the ai|the model)"
+_DIRECTIVES = (
+    r"(instructions?|rules?|guidelines?|directions?|directives?|prompts?|guardrails?"
+    r"|programming|configuration)"
+)
+# Extraction: discover, reproduce, quote, or reveal the assistant's hidden, system, or developer
+# instructions, or privileged content that preceded the user's message.
+EXTRACTION_PATTERNS = (
+    re.compile(
+        r"\b(your|(the|this) assistant( s)?)\s+"
         r"(system|hidden|initial|original|developer)\s+(prompt|instructions?|message)\b"
         r"|\b(hidden|initial|original)\s+(prompt|instructions)\b"
     ),
@@ -40,15 +61,36 @@ INJECTION_PATTERNS = (
         r"\b(your|the|system|hidden|internal)\s+(prompt|instructions|system message|guardrails)\b"
     ),
     re.compile(
-        r"\byou are now\b|\bpretend (to be|you are)\b|\bdeveloper mode\b|\bjailbreak\w*\b"
-        r"|\bdo anything now\b|\bdan mode\b|\bno (restrictions|rules|filters)\b|\bunfiltered\b"
-        r"|\bnew instructions?\b|\bfrom now on\b|\brole[- ]?play\b"
-    ),
-    re.compile(
         r"\b(repeat|print|output|show|reveal|copy)\b.{0,25}?"
         r"\b(text|everything|words|content|message)\s+(above|before|preceding)\b"
     ),
+    re.compile(
+        r"\b(reveal|show|print|repeat|display|dump|output|copy|quote|recite|leak)\b.{0,30}?"
+        r"\b(preceding|previous|prior|above|earlier|initial|first)\s+(system\s+|developer\s+)?"
+        r"(messages?|prompts?|instructions?|text|content)\b"
+    ),
+    re.compile(
+        rf"\b(what|which)\s+{_DIRECTIVES}\s+(were|was|have|has|did|do|does|are)\s+{_ASSISTANT}\b"
+    ),
+    re.compile(
+        rf"\b{_DIRECTIVES}\s+(that\s+)?{_ASSISTANT}\s+"
+        r"(were|was|have|had|are|got|received?|follows?|followed|use)\b"
+    ),
+    re.compile(
+        r"\b(quote|repeat|recite|reveal|show|print|tell|give|list|share|provide|output|display"
+        r"|state|paste|copy|dump|read|write|send)\b(\s+\w+){0,3}?"
+        rf"\s+(your|the assistant s|this assistant s|its)\s+(\w+\s+){{0,3}}?{_DIRECTIVES}\b"
+    ),
+    re.compile(
+        r"\bwhat\s+(were|are|have)\s+you\s+(been\s+)?"
+        r"(told|instructed|programmed|configured|asked|directed|trained)\b"
+        r"|\bwhat\s+you\s+(were|are|have been)\s+"
+        r"(told|instructed|programmed|configured|asked|directed)\b"
+    ),
 )
+
+# Normalization-resistant markers for high-confidence attacks, matched after removing spacing,
+# punctuation, and leetspeak (e.g. "i.g.n.o.r.e prev1ous instructions").
 _SQUASHED_INJECTION = (
     "ignorepreviousinstructions",
     "ignoreallpreviousinstructions",
@@ -147,11 +189,14 @@ def normalize_text(text: str) -> str:
 
 
 def contains_injection(text: str) -> bool:
+    """Manipulation, extraction, or squashed-marker attack. Screens user input and evidence."""
     normalized = normalize_text(text)
     words = re.sub(r"[^a-z0-9]+", " ", normalized)
     squashed = re.sub(r"[^a-z]+", "", normalized.translate(_LEET))
-    return any(p.search(words) for p in INJECTION_PATTERNS) or any(
-        marker in squashed for marker in _SQUASHED_INJECTION
+    return (
+        any(pattern.search(words) for pattern in INJECTION_PATTERNS)
+        or any(pattern.search(words) for pattern in EXTRACTION_PATTERNS)
+        or any(marker in squashed for marker in _SQUASHED_INJECTION)
     )
 
 

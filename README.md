@@ -1,12 +1,16 @@
 # AI Career Portfolio and Resume RAG Assistant
 
 A recruiter-facing single-page portfolio with an AI career assistant that answers questions
-strictly from approved career materials, with clickable citations.
+strictly from approved career materials. Every answer is grounded and citation-validated in the
+backend; citations are kept internal and not shown to recruiters.
 
-**Current status: Phase 4 complete.** The live Gemini + Pinecone RAG path is verified against the 13
-indexed résumé chunks and now runs behind deterministic input, retrieval, and output guardrails
-with rate limits and caching. The backend serves **deterministic mock answers** unless the live
-flags are enabled.
+**Current status: Phase 5 complete.** The live Gemini + Pinecone RAG path is verified against the 13
+indexed résumé chunks and runs behind deterministic input, retrieval, and output guardrails
+with rate limits and caching. An 80-case golden evaluation records the baseline and release
+gates. After the Phase 5 remediation all 14 release gates pass on the final candidate run
+(`evaluations/reports/candidate-v2-final/comparison.md`); two individual cases still fail
+(see that report). The
+backend serves **deterministic mock answers** unless the live flags are enabled.
 
 ---
 
@@ -42,7 +46,8 @@ flags are enabled.
 │   ├── state/                manifest.json, written only after a successful --apply
 │   ├── tests/                Pytest (no network)
 │   └── cli.py
-├── .github/workflows/        Frontend, backend, and ingestion CI
+├── evaluations/              Phase 5 golden dataset, evaluators, release gates, reports
+├── .github/workflows/        Frontend, backend, ingestion, and evaluation CI
 ├── Makefile
 └── README.md
 ```
@@ -112,6 +117,11 @@ cd backend; python -m mypy         # MyPy (strict)
 python -m pytest ingestion
 python -m ruff check ingestion
 python -m mypy --config-file ingestion/pyproject.toml ingestion
+
+# Evaluations (from the repository root, backend virtualenv)
+backend\.venv\Scripts\python.exe -m pytest evaluations
+backend\.venv\Scripts\python.exe -m ruff check evaluations
+backend\.venv\Scripts\python.exe -m mypy --config-file evaluations/pyproject.toml evaluations
 ```
 
 ---
@@ -196,16 +206,79 @@ All guardrails are deterministic application code in `backend/app/guardrails/`; 
 
 | Stage | Control |
 | --- | --- |
-| Input | Blocks prompt injection and jailbreaks (including leetspeak, spaced, zero-width, URL/HTML-entity, and base64/hex-encoded forms), credential and prompt requests, vector-store dumps, fabrication requests, sensitive personal data, confidential employer data, HTML/script/file content, and off-topic tasks. Blocked requests get the scope message and make **no** paid call |
-| Retrieval | Drops retrieved chunks containing instructions aimed at the assistant before generation |
-| Prompt | `grounded-answer-v2`: absence of evidence is reported as "not documented", false premises are corrected from evidence, portfolio projects are never placed at an employer |
-| Output | `PASS` / `REPAIRABLE` / `FAIL`. Fails on secrets, prompt or metadata leakage, URLs/HTML, unsupported negative assertions ("has not worked at X"), and portfolio-at-employer attribution. Repairable: uncited numbers or bullets, over-long answers. Stray emails and phone numbers are redacted |
+| Input | Blocks prompt injection and jailbreaks (including leetspeak, spaced, zero-width, URL/HTML-entity, and base64/hex-encoded forms), requests for the assistant's own instructions ("What instructions were you given?"), credential requests, vector-store dumps, fabrication requests, sensitive personal data, confidential employer data, HTML/script/file content, and off-topic tasks. Blocked requests get the scope message and make **no** paid call |
+| Routing | Deterministic intent router (`app/services/intent.py`): unrelated general-knowledge questions and tasks route to `OUT_OF_SCOPE` with **no** paid call; profile questions are recognized explicitly; short career follow-ups ("What about pricing?") still reach bounded RAG. No model call decides scope |
+| Retrieval | Drops retrieved chunks containing instructions aimed at the assistant before generation. Broad employer-history questions take the best chunk per employer first, then fill by score |
+| Prompt | `grounded-answer-v4`: at most 120 words, 3 claims, 2 follow-ups; single-fact questions get only that fact; job titles are never carried across employers; missing evidence is a single "I could not find X in Abhishek's approved résumé." with no unrelated facts or citations; portfolio projects are never placed at an employer |
+| Schema | `maxItems` bounds (claims 3, citations 5, follow-ups 2) are sent to Gemini; Pydantic also bounds answer, claim, and abstention text. Output stays within `GEMINI_MAX_OUTPUT_TOKENS=800` |
+| Output | `PASS` / `REPAIRABLE` / `FAIL`. Fails on secrets, prompt or metadata leakage, URLs/HTML, unsupported negative assertions ("has not worked at X"), and portfolio-at-employer attribution. Repairable: uncited numbers or bullets, over-long answers. Stray emails and phone numbers (including before punctuation) are redacted. A grounded answer must carry at least one inline `[Cn]` marker; after validation the `citations` array is pruned to the IDs the answer text uses, and markers are removed from the displayed answer |
 | Retries | `MAX_GENERATION_RETRIES` (default `0`) applies only to repairable failures |
 | Limits | `MAX_QUESTIONS_PER_SESSION` and `MAX_QUESTIONS_PER_IP_PER_DAY` return `429` with `Retry-After`. `X-Forwarded-For` is ignored unless `TRUSTED_PROXY_HOPS` > 0 |
 | Cache | Bounded TTL LRU cache keyed by normalized question + corpus, models, dimensions, namespace, and prompt version. Only grounded, validated answers are cached |
 
 The frontend already treats `429` and `503` as "temporarily unavailable"; the static page keeps
 working.
+
+---
+
+## Evaluation and release gates (Phase 5)
+
+`evaluations/` measures the pipeline against `evaluations/datasets/golden.jsonl`. The dataset has
+80 cases across 17 categories: profile, experience, employer history, projects, skills, impact,
+education, multi-source, unanswerable, false premise, attribution, prompt injection and
+extraction, confidential data, citation manipulation, out of scope, and contact. Each case lists
+expected behaviour, relevant chunk IDs, evidence groups (one per employer for "Where has
+Abhishek worked?"), required facts, and forbidden claims. Scoring is deterministic and
+independent of `app.guardrails`.
+
+| Mode | External calls | What it measures |
+| --- | --- | --- |
+| `offline` | None | Input guard and routing: injection block rate, benign pass rate |
+| `rescore` | None | All metrics, recomputed from a saved `observations.jsonl` |
+| `live` | Gemini + Pinecone (read-only) | Full pipeline: Recall@5/10, MRR, citation precision/recall/validity, material-claim coverage, unsupported claims, abstention, attribution, leakage |
+
+```powershell
+# From the repository root. Offline, rescore, and compare make zero external calls.
+backend\.venv\Scripts\python.exe -m evaluations.run_evaluation offline --label <name>
+backend\.venv\Scripts\python.exe -m evaluations.run_evaluation rescore --observations evaluations/reports/candidate/observations.jsonl --label <new-name>
+backend\.venv\Scripts\python.exe -m evaluations.compare --baseline evaluations/reports/baseline-final --candidate evaluations/reports/candidate-v2-final
+
+# Live: deliberate, paid (about $0.07 for 80 cases), development namespace only. Flags are scoped
+# to this shell command and removed afterwards; backend/.env keeps them false.
+# --cases eval-001,eval-004 limits a run to specific cases.
+$env:ENABLE_LIVE_MODEL_CALLS='true'; $env:ENABLE_LIVE_RAG='true'; $env:ENABLE_LIVE_VECTOR_UPSERTS='false'
+try { backend\.venv\Scripts\python.exe -m evaluations.run_evaluation live --label <name> --no-fail }
+finally { Remove-Item env:ENABLE_LIVE_MODEL_CALLS, env:ENABLE_LIVE_RAG, env:ENABLE_LIVE_VECTOR_UPSERTS }
+```
+
+- Live mode refuses the `production` namespace, disables the answer cache, paces requests
+  (`--min-interval`, default 4 s), never retries, and stops on the first provider failure
+- Reports (`report.json`, `report.md`, `observations.jsonl`) go to `evaluations/reports/<label>/`
+  and are never overwritten without `--overwrite`. They contain no keys, prompts, or vectors;
+  answers with detected leakage are withheld
+- Release gates live in `evaluations/thresholds.yaml`. The exit code is `1` when a gate fails
+  (`--no-fail` overrides). CI runs the offline gates only
+- `MIN_RETRIEVAL_SCORE` stays unset: relevant and unrelated scores overlap in both runs
+
+Golden-set corrections (each recorded in the case's `notes` field):
+
+- 2026-10-18, eval-020: "Generalized Linear Model" accepted as an alternative to "GLM"
+- 2026-10-18, eval-001: `education` accepted; a broad overview reasonably includes education
+- 2026-10-18, eval-001 and eval-002: all five CNA chunks accepted for the current-role fact; each
+  carries the identical `CNA Insurance, Senior Machine Learning Engineer | March 2021 - Present`
+  heading
+
+Every comparison re-scores the saved baseline answers with the same golden set and evaluator as
+the candidate.
+
+| Report folder | Contents |
+| --- | --- |
+| `baseline/` | Original Phase 5 live run, original evaluator (immutable) |
+| **`baseline-final/`** | Same baseline answers, corrected golden set and final evaluator |
+| **`candidate-v2-final/`** | Final candidate answers, same scoring, plus `comparison.md` (current results) |
+| `candidate-v2/` | Final candidate live run (raw) |
+| `offline-final/` | Input guard and routing, corrected golden set |
+| Other folders | Earlier intermediate runs and re-scorings, kept for the audit trail |
 
 ---
 
@@ -264,6 +337,6 @@ approved source content is supplied.
 | 2     | Knowledge base and ingestion        | Complete    |
 | 3     | Live RAG pipeline                   | Complete (Gemini + Pinecone, 13 chunks in `development`) |
 | 4     | Guardrails and cost controls        | Complete    |
-| 5     | Evaluation framework                | Not started |
+| 5     | Evaluation framework                | Complete: all 14 release gates pass (2 individual cases still fail) |
 | 6     | Deployment                          | Not started |
 | 7     | Content and polish                  | Not started |

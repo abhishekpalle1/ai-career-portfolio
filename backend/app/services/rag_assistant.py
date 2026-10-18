@@ -18,7 +18,7 @@ from app.retrieval.context import select_context
 from app.retrieval.embeddings import GeminiQueryEmbedder, QueryEmbedder
 from app.retrieval.vector_store import PineconeRetriever, RetrievedChunk, Retriever
 from app.services.generation import AnswerGenerator, GeminiAnswerGenerator, GeneratedAnswer
-from app.services.intent import classify_intent
+from app.services.intent import classify_intent, wants_employer_history
 
 logger = logging.getLogger("career-portfolio.rag")
 
@@ -54,10 +54,40 @@ _REPAIRABLE_VALIDATION = frozenset(
     {"unparsed_output", "malformed_citation_marker", "uncited_answer", "uncited_claim"}
 )
 _SUGGESTION_UNSAFE_RE = re.compile(r"<|>|\b(?:https?|javascript|data|file)\s*:", re.IGNORECASE)
+_DISPLAY_MARKER_RE = re.compile(r"[ \t]*\[\s*C\d+(?:\s*,\s*C\d+)*\s*\]")
+# The only model-written text allowed without citations: a bounded statement of missing evidence.
+_EVIDENCE_ABSENCE_RE = re.compile(
+    r"I could not find [^\[\]\d\n<>]{1,120} in Abhishek['\u2019]s approved r[eé]sum[eé]\."
+)
 
 
 class AssistantUnavailableError(RuntimeError):
     pass
+
+
+def build_live_components(
+    settings: Settings,
+) -> tuple[GeminiQueryEmbedder, PineconeRetriever, GeminiAnswerGenerator]:
+    """Live Gemini + Pinecone components. No network call until first use."""
+    missing = settings.missing_live_rag_settings()
+    if missing or settings.gemini_api_key is None:
+        raise AssistantUnavailableError(f"Live RAG settings missing: {', '.join(missing)}")
+    from google import genai
+    from google.genai import types
+
+    # attempts=1: no hidden retries on the request path.
+    client = genai.Client(
+        api_key=settings.gemini_api_key.get_secret_value(),
+        http_options=types.HttpOptions(
+            timeout=int(settings.external_timeout_seconds * 1000),
+            retry_options=types.HttpRetryOptions(attempts=1),
+        ),
+    )
+    return (
+        GeminiQueryEmbedder.from_settings(settings, client),
+        PineconeRetriever.from_settings(settings),
+        GeminiAnswerGenerator.from_settings(settings, client),
+    )
 
 
 class RagAssistant:
@@ -73,8 +103,12 @@ class RagAssistant:
         self._embedder = embedder
         self._retriever = retriever
         self._generator = generator
-        self._cache = cache or AnswerCache(
-            ttl_seconds=settings.cache_ttl_seconds, max_entries=settings.cache_max_entries
+        self._cache = (
+            cache
+            if cache is not None
+            else AnswerCache(
+                ttl_seconds=settings.cache_ttl_seconds, max_entries=settings.cache_max_entries
+            )
         )
         self._cache_versions = (
             settings.corpus_version,
@@ -88,26 +122,7 @@ class RagAssistant:
     @classmethod
     def from_settings(cls, settings: Settings) -> RagAssistant:
         """Builds clients without any network call; the first request connects."""
-        missing = settings.missing_live_rag_settings()
-        if missing or settings.gemini_api_key is None:
-            raise AssistantUnavailableError(f"Live RAG settings missing: {', '.join(missing)}")
-        from google import genai
-        from google.genai import types
-
-        # attempts=1: no hidden retries on the request path.
-        client = genai.Client(
-            api_key=settings.gemini_api_key.get_secret_value(),
-            http_options=types.HttpOptions(
-                timeout=int(settings.external_timeout_seconds * 1000),
-                retry_options=types.HttpRetryOptions(attempts=1),
-            ),
-        )
-        return cls(
-            settings,
-            GeminiQueryEmbedder.from_settings(settings, client),
-            PineconeRetriever.from_settings(settings),
-            GeminiAnswerGenerator.from_settings(settings, client),
-        )
+        return cls(settings, *build_live_components(settings))
 
     def answer(self, message: str) -> ChatResponse:
         trace_id = uuid.uuid4().hex[:16]
@@ -151,6 +166,8 @@ class RagAssistant:
                 final_chunks=settings.final_context_chunks,
                 min_score=settings.min_retrieval_score,
                 max_context_tokens=settings.max_context_tokens,
+                diversify_employers=intent == "PROFESSIONAL_EXPERIENCE"
+                and wants_employer_history(question),
             )
             failure = "no_context" if not context else None
             while context and generations < attempts:
@@ -177,10 +194,25 @@ class RagAssistant:
             (time.perf_counter() - started) * 1000,
         )
         if failure is not None or generated is None:
-            return _fixed(ABSTENTION_ANSWER, intent, trace_id, abstained=True)
+            absence = (
+                self._evidence_absence(generated, context) if failure == "model_abstained" else None
+            )
+            return _fixed(absence or ABSTENTION_ANSWER, intent, trace_id, abstained=True)
         response = _grounded_response(generated, final_answer, context, intent, trace_id)
         self._cache.put(cache_key, response)
         return response
+
+    def _evidence_absence(
+        self, generated: GeneratedAnswer | None, context: list[RetrievedChunk]
+    ) -> str | None:
+        """The model's "I could not find X in Abhishek's approved résumé." if it is exactly that."""
+        if generated is None:
+            return None
+        text = " ".join(generated.answer.split())
+        if not _EVIDENCE_ABSENCE_RE.fullmatch(text):
+            return None
+        guarded = check_output(text, context, max_characters=self._settings.max_answer_characters)
+        return guarded.answer if guarded.verdict == "PASS" else None
 
     def _evaluate(
         self, generated: GeneratedAnswer | None, context: list[RetrievedChunk]
@@ -240,7 +272,7 @@ def validate_generated(
         return "malformed_citation_marker"
     by_id = {citation_id(i): chunk for i, chunk in enumerate(context, start=1)}
     referenced = _referenced_ids(generated)
-    if not referenced or not generated.claims:
+    if not referenced or not generated.claims or not parse_inline_citations(generated.answer)[0]:
         return "uncited_answer"
     if not referenced <= by_id.keys():
         return "unknown_citation"
@@ -264,14 +296,15 @@ def _grounded_response(
     intent: Intent,
     trace_id: str,
 ) -> ChatResponse:
-    referenced = _referenced_ids(generated)
+    # Only citations the validated answer text actually uses; claims-only IDs are dropped.
+    used = set(parse_inline_citations(answer_text)[0])
     citations = [
         _to_citation(citation_id(i), chunk)
         for i, chunk in enumerate(context, start=1)
-        if citation_id(i) in referenced
+        if citation_id(i) in used
     ]
     return ChatResponse(
-        answer=answer_text,
+        answer=strip_citation_markers(answer_text),
         citations=citations,
         suggested_questions=_clean_suggestions(generated.suggested_questions),
         intent=intent,
@@ -279,6 +312,12 @@ def _grounded_response(
         abstained=False,
         trace_id=trace_id,
     )
+
+
+def strip_citation_markers(answer: str) -> str:
+    """Recruiter-facing text, after citation validation. Citations stay in the response."""
+    lines = (re.sub(r"[ \t]{2,}", " ", line).strip() for line in answer.split("\n"))
+    return "\n".join(_DISPLAY_MARKER_RE.sub("", line).strip() for line in lines)
 
 
 def _to_citation(cid: str, chunk: RetrievedChunk) -> Citation:

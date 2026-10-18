@@ -1,5 +1,7 @@
 """Phase 4 output guardrails, using real résumé heading paths."""
 
+import re
+
 import pytest
 
 from app.guardrails.output_guard import REDACTION, check_output
@@ -103,6 +105,40 @@ def test_emails_and_phone_numbers_are_redacted() -> None:
     assert "someone@example.com" not in result.answer
     assert "555-010-0199" not in result.answer
     assert result.answer.count(REDACTION) == 2
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Call 312-555-0199.",
+        "Call 312-555-0199, or email.",
+        "Reach him (312-555-0199) today.",
+        "Call 312-555-0199",
+        "Call (312) 555-0199 today.",
+        "Call 312.555.0199 today.",
+        "Call +1 312 555 0199 today.",
+        "Call 1-312-555-0199!",
+    ],
+)
+def test_phone_numbers_are_redacted_including_before_punctuation(text: str) -> None:
+    result = check_output(text, CONTEXT, max_characters=1500)
+
+    assert not re.search(r"\d{4}", result.answer)
+    assert REDACTION in result.answer
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Scored 3.7M contracts and 1.4M claims [C1].",
+        "Cut the spread from 1.42 to 0.06 on a 448K-contract holdout [C1].",
+        "Ranked 45K claims for 2021-2023 [C1].",
+        "Processed ~100K calls/month at ~$0.30 per application [C1].",
+        "Released model version 312.555.0199.5 [C1].",
+    ],
+)
+def test_numeric_metrics_are_not_treated_as_phone_numbers(text: str) -> None:
+    assert check_output(text, CONTEXT, max_characters=1500).answer == text
 
 
 def test_metrics_with_at_sign_are_not_treated_as_email() -> None:

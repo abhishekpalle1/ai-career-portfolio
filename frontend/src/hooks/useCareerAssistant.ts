@@ -37,7 +37,6 @@ export function useCareerAssistant(): CareerAssistantState {
       id: 'assistant-welcome',
       role: 'assistant',
       text: INITIAL_ASSISTANT_MESSAGE,
-      citations: [],
       abstained: false,
     },
   ]);
@@ -62,7 +61,7 @@ export function useCareerAssistant(): CareerAssistantState {
     setStatus('loading');
     setMessages((previous) => [
       ...previous,
-      { id: createId('user'), role: 'user', text: trimmed, citations: [], abstained: false },
+      { id: createId('user'), role: 'user', text: trimmed, abstained: false },
     ]);
 
     try {
@@ -77,7 +76,6 @@ export function useCareerAssistant(): CareerAssistantState {
           id: createId('assistant'),
           role: 'assistant',
           text: response.answer,
-          citations: response.citations,
           abstained: response.abstained,
         },
       ]);

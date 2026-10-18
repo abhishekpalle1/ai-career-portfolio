@@ -1,0 +1,38 @@
+name: evaluation-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'evaluations/**'
+      - 'backend/**'
+      - 'ingestion/**'
+      - 'knowledge-base/**'
+      - '.github/workflows/evaluation-ci.yml'
+  pull_request:
+    paths:
+      - 'evaluations/**'
+      - 'backend/**'
+      - 'ingestion/**'
+      - 'knowledge-base/**'
+      - '.github/workflows/evaluation-ci.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e "./backend[dev]" pyyaml
+      - run: python -m ruff check evaluations
+      - run: python -m ruff format --check evaluations
+      - run: python -m mypy --config-file evaluations/pyproject.toml evaluations
+      - run: python -m pytest evaluations
+      # Offline release gates only (input guard + routing). No API keys; zero external calls.
+      # Live evaluation is run deliberately by a developer, never in CI.
+      - run: python -m evaluations.run_evaluation offline --output-dir "$RUNNER_TEMP/evaluation"

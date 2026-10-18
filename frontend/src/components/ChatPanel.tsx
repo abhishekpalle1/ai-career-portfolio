@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChatMessage } from './ChatMessage';
-import { CitationDrawer } from './CitationDrawer';
 import { SuggestedQuestion } from './SuggestedQuestion';
 import { MAX_INPUT_CHARACTERS } from '../api/careerAssistantApi';
 import { useCareerAssistant } from '../hooks/useCareerAssistant';
 import { suggestedQuestions } from '../data/suggestedQuestions';
-import type { Citation } from '../types/chat';
 
 const COUNTER_VISIBLE_FROM = MAX_INPUT_CHARACTERS - 100;
 
@@ -13,7 +11,6 @@ export function ChatPanel() {
   const { messages, status, errorMessage, followUpQuestions, showSuggestions, askQuestion } =
     useCareerAssistant();
   const [draft, setDraft] = useState('');
-  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
   const isLoading = status === 'loading';
@@ -54,7 +51,6 @@ export function ChatPanel() {
           <ChatMessage
             key={message.id}
             message={message}
-            onSelectCitation={setActiveCitation}
             showFeedback={
               message.role === 'assistant' &&
               message.id !== 'assistant-welcome' &&
@@ -155,11 +151,9 @@ export function ChatPanel() {
         <p id="assistant-input-help" className="chat-panel__help">
           {draft.length >= COUNTER_VISIBLE_FROM
             ? `${draft.length} of ${MAX_INPUT_CHARACTERS} characters`
-            : 'Press Enter to send. Answers cite approved career sources.'}
+            : 'Press Enter to send. Answers are grounded in approved career materials.'}
         </p>
       </div>
-
-      <CitationDrawer citation={activeCitation} onClose={() => setActiveCitation(null)} />
     </div>
   );
 }

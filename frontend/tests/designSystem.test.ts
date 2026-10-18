@@ -123,10 +123,10 @@ describe('assistant window styling', () => {
     expect(question).not.toContain('border-radius: 999px');
   });
 
-  it('keeps forest submit and badge colors with terracotta citation markers', () => {
+  it('keeps forest submit and badge colors and no citation styling', () => {
     expect(rule('.chat-panel__submit')).toContain('background: var(--color-primary)');
     expect(rule('.chat-message__badge')).toContain('background: var(--color-primary)');
-    expect(rule('.citations__marker')).toContain('color: var(--color-accent)');
+    expect(css).not.toMatch(/\.citations|\.drawer/);
   });
 
   it('defines no permanent evidence panel styling', () => {
@@ -170,14 +170,12 @@ describe('horizontal overflow guards', () => {
     }
   });
 
-  it('wraps long organization, role, question, excerpt, and link text', () => {
+  it('wraps long organization, role, question, and link text', () => {
     for (const selector of [
       '.experience-item__organization',
       '.experience-item__role',
       '.experience-item__summary',
-      '.drawer__excerpt',
       '.suggested-question',
-      '.citations__button',
       '.text-link',
       '.hero__name',
       '.proof-point__value',

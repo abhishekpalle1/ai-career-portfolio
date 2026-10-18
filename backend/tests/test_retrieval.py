@@ -3,9 +3,14 @@ from typing import Any
 
 import pytest
 
-from app.retrieval.context import count_tokens, select_context
+from app.retrieval.context import count_tokens, employer_of, select_context
 from app.retrieval.embeddings import GeminiQueryEmbedder, format_query
-from app.retrieval.vector_store import MANDATORY_FILTER, PineconeRetriever, parse_match
+from app.retrieval.vector_store import (
+    MANDATORY_FILTER,
+    PineconeRetriever,
+    RetrievedChunk,
+    parse_match,
+)
 from tests.rag_fakes import chunk
 
 
@@ -121,6 +126,59 @@ def test_select_context_applies_min_score_and_token_budget() -> None:
         chunks, final_chunks=5, min_score=None, max_context_tokens=one_chunk_budget
     )
     assert [c.chunk_id for c in budgeted] == ["a"]
+
+
+def _work(chunk_id: str, score: float, employer: str) -> RetrievedChunk:
+    path = f"ABHISHEK PALLE > WORK EXPERIENCE > {employer}, Engineer | 2020 > Initiative"
+    return chunk(chunk_id, score, heading_path=path)
+
+
+CANDIDATES = [
+    chunk("education", 0.70, experience_type="EDUCATION", section="EDUCATION"),
+    _work("cna-1", 0.69, "CNA Insurance"),
+    _work("cna-2", 0.68, "CNA Insurance"),
+    _work("cna-3", 0.67, "CNA Insurance"),
+    chunk("project", 0.665, experience_type="PORTFOLIO", section="SELECTED PROJECTS"),
+    _work("cna-4", 0.66, "CNA Insurance"),
+    _work("sbd", 0.65, "Stanley Black & Decker"),
+    _work("eternal", 0.64, "Eternal Robotics"),
+    _work("pmc", 0.63, "Production Modeling Corporation"),
+]
+
+
+def test_employer_diversification_covers_every_retrieved_employer_in_rank_order() -> None:
+    plain = select_context(CANDIDATES, final_chunks=5, min_score=None, max_context_tokens=None)
+    diverse = select_context(
+        CANDIDATES,
+        final_chunks=5,
+        min_score=None,
+        max_context_tokens=None,
+        diversify_employers=True,
+    )
+
+    assert [c.chunk_id for c in plain] == ["education", "cna-1", "cna-2", "cna-3", "project"]
+    assert [c.chunk_id for c in diverse] == ["education", "cna-1", "sbd", "eternal", "pmc"]
+    assert {employer_of(c) for c in diverse} - {None} == {
+        "CNA Insurance",
+        "Stanley Black & Decker",
+        "Eternal Robotics",
+        "Production Modeling Corporation",
+    }
+
+
+def test_employer_diversification_never_invents_missing_employers() -> None:
+    only_cna = [c for c in CANDIDATES if c.chunk_id.startswith("cna")]
+    selected = select_context(
+        only_cna, final_chunks=5, min_score=None, max_context_tokens=None, diversify_employers=True
+    )
+
+    assert [c.chunk_id for c in selected] == ["cna-1", "cna-2", "cna-3", "cna-4"]
+
+
+def test_employer_of_reads_only_professional_heading_paths() -> None:
+    assert employer_of(_work("x", 0.5, "Eternal Robotics")) == "Eternal Robotics"
+    assert employer_of(CANDIDATES[0]) is None
+    assert employer_of(CANDIDATES[4]) is None
 
 
 class FakeGeminiModels:

@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from app.prompts.grounded_answer import SYSTEM_PROMPT, render_user_input
-from app.services.generation import GeminiAnswerGenerator, GeneratedAnswer
+from app.services.generation import GeminiAnswerGenerator, GeneratedAnswer, response_schema
 from tests.rag_fakes import answer, chunk
 
 
@@ -36,7 +36,7 @@ def test_generator_requests_json_schema_output_with_system_instruction() -> None
     config = call["config"]
     assert config["system_instruction"] == SYSTEM_PROMPT
     assert config["response_mime_type"] == "application/json"
-    assert config["response_json_schema"] == GeneratedAnswer.model_json_schema()
+    assert config["response_json_schema"] == response_schema()
     assert config["max_output_tokens"] == 500
     assert config["automatic_function_calling"] == {"disable": True}
 
@@ -87,7 +87,39 @@ def _schema_keywords(node: object, found: set[str]) -> set[str]:
 
 
 def test_answer_schema_uses_only_gemini_supported_keywords() -> None:
-    schema = GeneratedAnswer.model_json_schema()
+    schema = response_schema()
 
     assert _schema_keywords(schema, set()) <= _GEMINI_SCHEMA_KEYWORDS
     assert set(schema["required"]) == set(GeneratedAnswer.model_fields)
+
+
+def test_answer_schema_bounds_collections_for_the_output_budget() -> None:
+    properties = response_schema()["properties"]
+
+    assert properties["claims"]["maxItems"] == 3
+    assert properties["suggested_questions"]["maxItems"] == 2
+    assert properties["citation_ids"]["maxItems"] == 5
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"answer": "x" * 1501},
+        {"abstention_reason": "x" * 301},
+        {"suggested_questions": ["a?", "b?", "c?"]},
+        {"citation_ids": ["C1", "C2", "C3", "C4", "C5", "C6"]},
+    ],
+)
+def test_oversized_structured_output_is_rejected(overrides: dict[str, object]) -> None:
+    payload = json.loads(answer().model_dump_json()) | overrides
+    generator, _ = generator_for(json.dumps(payload))
+
+    assert generator.generate("q", [chunk("c1", 0.9)]) is None
+
+
+def test_more_than_three_claims_or_long_claims_are_rejected() -> None:
+    payload = json.loads(answer().model_dump_json())
+    claim = payload["claims"][0]
+    for claims in ([claim] * 4, [claim | {"text": "x" * 301}]):
+        generator, _ = generator_for(json.dumps(payload | {"claims": claims}))
+        assert generator.generate("q", [chunk("c1", 0.9)]) is None

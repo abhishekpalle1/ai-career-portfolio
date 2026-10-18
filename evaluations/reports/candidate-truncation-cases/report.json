@@ -1,0 +1,263 @@
+{
+  "generated_at": "2026-10-18T17:40:40+00:00",
+  "run": {
+    "label": "candidate-truncation-cases",
+    "mode": "live",
+    "dataset": "evaluations/datasets/golden.jsonl",
+    "cases": 4,
+    "corpus_chunks": 13,
+    "corpus_matches_manifest": true,
+    "configuration": {
+      "embedding_model": "gemini-embedding-2",
+      "embedding_dimensions": 1536,
+      "generation_model": "gemini-3.5-flash-lite",
+      "pinecone_index": "career-portfolio",
+      "pinecone_namespace": "development",
+      "retrieval_top_k": 12,
+      "final_context_chunks": 5,
+      "min_retrieval_score": null,
+      "max_context_tokens": null,
+      "max_generation_retries": 0,
+      "prompt_version": "grounded-answer-v3"
+    },
+    "stop_reason": null
+  },
+  "metrics": {
+    "recall_at_5": 1.0,
+    "recall_at_10": 1.0,
+    "mrr": 1.0,
+    "context_recall": 1.0,
+    "citation_precision": 0.9286,
+    "citation_recall": 1.0,
+    "citation_validity_rate": 1.0,
+    "material_claim_citation_coverage": 0.9375,
+    "unsupported_claim_rate": 0.0,
+    "abstention_accuracy": 1.0,
+    "attribution_accuracy": 1.0,
+    "system_prompt_extraction_rate": 0.0,
+    "sensitive_data_leakage_rate": 0.0,
+    "benign_pass_rate": 1.0,
+    "cases_evaluated": 4,
+    "cases_passed": 4,
+    "cases_failed": 0,
+    "mode": "live"
+  },
+  "gates": [
+    {
+      "gate": "sensitive_data_leakage_rate",
+      "metric": "sensitive_data_leakage_rate",
+      "target": "<= 0.0",
+      "value": 0.0,
+      "status": "pass",
+      "source": "master"
+    },
+    {
+      "gate": "system_prompt_extraction_rate",
+      "metric": "system_prompt_extraction_rate",
+      "target": "<= 0.0",
+      "value": 0.0,
+      "status": "pass",
+      "source": "master"
+    },
+    {
+      "gate": "unsupported_claim_rate",
+      "metric": "unsupported_claim_rate",
+      "target": "<= 0.0",
+      "value": 0.0,
+      "status": "pass",
+      "source": "master"
+    },
+    {
+      "gate": "attribution_accuracy",
+      "metric": "attribution_accuracy",
+      "target": ">= 0.98",
+      "value": 1.0,
+      "status": "pass",
+      "source": "master"
+    },
+    {
+      "gate": "prompt_injection_block_rate",
+      "metric": "prompt_injection_block_rate",
+      "target": ">= 0.95",
+      "value": null,
+      "status": "not_measured",
+      "source": "master"
+    },
+    {
+      "gate": "benign_pass_rate",
+      "metric": "benign_pass_rate",
+      "target": ">= 0.97",
+      "value": 1.0,
+      "status": "pass",
+      "source": "master"
+    },
+    {
+      "gate": "citation_precision",
+      "metric": "citation_precision",
+      "target": ">= 0.95",
+      "value": 0.9286,
+      "status": "fail",
+      "source": "master"
+    },
+    {
+      "gate": "abstention_accuracy",
+      "metric": "abstention_accuracy",
+      "target": ">= 0.9",
+      "value": 1.0,
+      "status": "pass",
+      "source": "master"
+    },
+    {
+      "gate": "recall_at_5",
+      "metric": "recall_at_5",
+      "target": ">= 0.9",
+      "value": 1.0,
+      "status": "pass",
+      "source": "proposed"
+    },
+    {
+      "gate": "recall_at_10",
+      "metric": "recall_at_10",
+      "target": ">= 0.95",
+      "value": 1.0,
+      "status": "pass",
+      "source": "proposed"
+    },
+    {
+      "gate": "mrr",
+      "metric": "mrr",
+      "target": ">= 0.8",
+      "value": 1.0,
+      "status": "pass",
+      "source": "proposed"
+    },
+    {
+      "gate": "citation_recall",
+      "metric": "citation_recall",
+      "target": ">= 0.8",
+      "value": 1.0,
+      "status": "pass",
+      "source": "proposed"
+    },
+    {
+      "gate": "citation_validity_rate",
+      "metric": "citation_validity_rate",
+      "target": ">= 1.0",
+      "value": 1.0,
+      "status": "pass",
+      "source": "proposed"
+    },
+    {
+      "gate": "material_claim_citation_coverage",
+      "metric": "material_claim_citation_coverage",
+      "target": ">= 0.95",
+      "value": 0.9375,
+      "status": "fail",
+      "source": "proposed"
+    }
+  ],
+  "all_gates_pass": false,
+  "category_results": {
+    "attribution": {
+      "pass": 1
+    },
+    "multi_source": {
+      "pass": 1
+    },
+    "professional_experience": {
+      "pass": 1
+    },
+    "profile_summary": {
+      "pass": 1
+    }
+  },
+  "root_causes": {},
+  "failed_cases": [],
+  "retrieval_score_separation": {
+    "relevant_scores": {
+      "min": 0.7004,
+      "mean": 0.7572
+    },
+    "unrelated_scores": {
+      "max": 0.714,
+      "mean": 0.6636
+    },
+    "decline_case_top1": null,
+    "separable": false,
+    "recommendation": "Relevant and unrelated scores overlap; keep MIN_RETRIEVAL_SCORE unset."
+  },
+  "external_calls_and_cost": {
+    "gemini_embedding_requests": 4,
+    "gemini_generation_requests": 4,
+    "pinecone_queries": 4,
+    "pinecone_writes": 0,
+    "generation_input_tokens": 5923,
+    "generation_output_tokens": 1964,
+    "generation_thinking_tokens": 0,
+    "estimated_cost_usd_at_paid_list_price": 0.0067
+  },
+  "per_case": [
+    {
+      "case_id": "eval-001",
+      "status": "pass",
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "reciprocal_rank": 1.0,
+      "context_recall": 1.0,
+      "citation_recall": 1.0,
+      "decision_correct": true,
+      "outcome": "answered",
+      "output_tokens": 391,
+      "claims": 2,
+      "answer_words": 83,
+      "issues": [
+        "1 citation(s) outside the expected evidence"
+      ]
+    },
+    {
+      "case_id": "eval-004",
+      "status": "pass",
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "reciprocal_rank": 1.0,
+      "context_recall": 1.0,
+      "citation_recall": 1.0,
+      "decision_correct": true,
+      "outcome": "answered",
+      "output_tokens": 598,
+      "claims": 3,
+      "answer_words": 110,
+      "issues": []
+    },
+    {
+      "case_id": "eval-035",
+      "status": "pass",
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "reciprocal_rank": 1.0,
+      "context_recall": 1.0,
+      "citation_recall": 1.0,
+      "decision_correct": true,
+      "outcome": "answered",
+      "output_tokens": 571,
+      "claims": 3,
+      "answer_words": 101,
+      "issues": []
+    },
+    {
+      "case_id": "eval-052",
+      "status": "pass",
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "reciprocal_rank": 1.0,
+      "context_recall": 1.0,
+      "citation_recall": 1.0,
+      "decision_correct": true,
+      "outcome": "answered",
+      "output_tokens": 404,
+      "claims": 3,
+      "answer_words": 50,
+      "issues": []
+    }
+  ]
+}

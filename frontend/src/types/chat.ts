@@ -43,7 +43,6 @@ export interface ChatMessage {
   id: string;
   role: ChatRole;
   text: string;
-  citations: Citation[];
   abstained: boolean;
 }
 
