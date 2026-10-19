@@ -25,8 +25,8 @@ jobs:
       # Public Cloud Run URL from the repository variable (Settings > Secrets and variables >
       # Actions > Variables). Not a secret; it is compiled into the browser bundle.
       VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-      # Project site: https://abhishekpalle1.github.io/ai-career-portfolio/. Use "/" for a custom domain.
-      VITE_BASE_PATH: /ai-career-portfolio/
+      # Served from the root of the custom domain https://abhishekpalle.com.
+      VITE_BASE_PATH: /
       npm_config_registry: https://registry.npmjs.org/
     steps:
       - uses: actions/checkout@v7

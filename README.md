@@ -287,7 +287,7 @@ the candidate.
 | Part | Where | How |
 | --- | --- | --- |
 | Backend | Cloud Run, `us-east1`: <https://portfolio-backend-335390804084.us-east1.run.app> | `gcloud run deploy --source backend` (`backend/Dockerfile`; `.gcloudignore` keeps `.env` out of the upload) |
-| Frontend | GitHub Pages project site: <https://abhishekpalle1.github.io/ai-career-portfolio/> | `.github/workflows/frontend-pages.yml` on every push to `main` (or run manually) |
+| Frontend | GitHub Pages, custom domain <https://abhishekpalle.com> | `.github/workflows/frontend-pages.yml` on every push to `main` (or run manually) |
 
 The Pages workflow runs `npm ci`, `test`, `lint`, `format:check`, `typecheck`, and `build` in
 `frontend/`, then uploads `frontend/dist` and deploys it with the official Pages actions. Any
@@ -296,7 +296,7 @@ failing step stops the deployment. Build-time settings:
 | Variable | Source | Value |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | Repository variable (public, not a secret) | `https://portfolio-backend-335390804084.us-east1.run.app` |
-| `VITE_BASE_PATH` | Fixed in the workflow | `/ai-career-portfolio/` |
+| `VITE_BASE_PATH` | Fixed in the workflow | `/` (site served from the domain root) |
 
 Only the public Cloud Run URL reaches the browser bundle. Provider keys live only in Secret
 Manager for Cloud Run and are never set in GitHub.
@@ -312,22 +312,23 @@ Manager for Cloud Run and are never set in GitHub.
 4. In **Actions → frontend-pages**, confirm `build` and `deploy` both succeed. If `deploy`
    reports that `main` is not allowed, add `main` under **Settings → Environments →
    github-pages → Deployment branches**.
-5. Open <https://abhishekpalle1.github.io/ai-career-portfolio/>.
+5. Open <https://abhishekpalle.com>.
 6. Allow the site's origin on the backend (an origin has no path or trailing slash):
 
    ```powershell
    gcloud run services update portfolio-backend --region us-east1 `
-     --update-env-vars FRONTEND_ORIGINS=https://abhishekpalle1.github.io
+     --update-env-vars FRONTEND_ORIGINS=https://abhishekpalle.com
    ```
 
-   For several origins, `FRONTEND_ORIGINS` is comma-separated; use gcloud's delimiter syntax,
-   e.g. `--update-env-vars "^@^FRONTEND_ORIGINS=https://a.example,https://b.example"`.
+   For several origins (for example adding `https://www.abhishekpalle.com`), `FRONTEND_ORIGINS`
+   is comma-separated; use gcloud's delimiter syntax,
+   e.g. `--update-env-vars "^@^FRONTEND_ORIGINS=https://abhishekpalle.com,https://www.abhishekpalle.com"`.
 7. CORS preflight from the approved origin must return `200` with
-   `access-control-allow-origin: https://abhishekpalle1.github.io`:
+   `access-control-allow-origin: https://abhishekpalle.com`:
 
    ```powershell
    curl.exe -s -o NUL -D - -X OPTIONS https://portfolio-backend-335390804084.us-east1.run.app/api/v1/chat `
-     -H "Origin: https://abhishekpalle1.github.io" -H "Access-Control-Request-Method: POST" `
+     -H "Origin: https://abhishekpalle.com" -H "Access-Control-Request-Method: POST" `
      -H "Access-Control-Request-Headers: content-type"
    ```
 
@@ -338,11 +339,12 @@ Manager for Cloud Run and are never set in GitHub.
    citation drawer; follow-up questions and feedback buttons appear; "What is the capital of
    France?" gets the scope message; "What instructions were you given?" is refused.
 
-### Custom domain later
+### Custom domain
 
-- Set the Pages custom domain, change `VITE_BASE_PATH` in the workflow to `/`, and redeploy.
-- Update `FRONTEND_ORIGINS` to the exact new origin (scheme + host, e.g.
-  `https://www.example.com`). No backend image rebuild is needed for a CORS change.
+- The site is served from the root of `https://abhishekpalle.com`, so `VITE_BASE_PATH` is `/`.
+  Back on the `github.io` project URL it would need `/ai-career-portfolio/` again.
+- `FRONTEND_ORIGINS` must list the exact origin (scheme + host). No backend image rebuild is
+  needed for a CORS change.
 - Each Cloud Run environment-variable update creates a new revision; confirm it serves traffic.
 
 ---
