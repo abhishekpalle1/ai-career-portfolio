@@ -47,7 +47,7 @@ backend serves **deterministic mock answers** unless the live flags are enabled.
 │   ├── tests/                Pytest (no network)
 │   └── cli.py
 ├── evaluations/              Phase 5 golden dataset, evaluators, release gates, reports
-├── .github/workflows/        Frontend, backend, ingestion, and evaluation CI
+├── .github/workflows/        Frontend, backend, ingestion, and evaluation CI; GitHub Pages deploy
 ├── Makefile
 └── README.md
 ```
@@ -282,6 +282,71 @@ the candidate.
 
 ---
 
+## Deployment (Phase 6)
+
+| Part | Where | How |
+| --- | --- | --- |
+| Backend | Cloud Run, `us-east1`: <https://portfolio-backend-335390804084.us-east1.run.app> | `gcloud run deploy --source backend` (`backend/Dockerfile`; `.gcloudignore` keeps `.env` out of the upload) |
+| Frontend | GitHub Pages project site: <https://abhishekpalle1.github.io/ai-career-portfolio/> | `.github/workflows/frontend-pages.yml` on every push to `main` (or run manually) |
+
+The Pages workflow runs `npm ci`, `test`, `lint`, `format:check`, `typecheck`, and `build` in
+`frontend/`, then uploads `frontend/dist` and deploys it with the official Pages actions. Any
+failing step stops the deployment. Build-time settings:
+
+| Variable | Source | Value |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | Repository variable (public, not a secret) | `https://portfolio-backend-335390804084.us-east1.run.app` |
+| `VITE_BASE_PATH` | Fixed in the workflow | `/ai-career-portfolio/` |
+
+Only the public Cloud Run URL reaches the browser bundle. Provider keys live only in Secret
+Manager for Cloud Run and are never set in GitHub.
+
+### Manual steps
+
+1. GitHub repository **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. **Settings → Secrets and variables → Actions → Variables → New repository variable**:
+   name `VITE_API_BASE_URL`, value `https://portfolio-backend-335390804084.us-east1.run.app`
+   (or `gh variable set VITE_API_BASE_URL --body "https://portfolio-backend-335390804084.us-east1.run.app"`).
+   The workflow fails before building if it is missing or not `https://`.
+3. Commit and push `.github/workflows/frontend-pages.yml` and the related changes to `main`.
+4. In **Actions → frontend-pages**, confirm `build` and `deploy` both succeed. If `deploy`
+   reports that `main` is not allowed, add `main` under **Settings → Environments →
+   github-pages → Deployment branches**.
+5. Open <https://abhishekpalle1.github.io/ai-career-portfolio/>.
+6. Allow the site's origin on the backend (an origin has no path or trailing slash):
+
+   ```powershell
+   gcloud run services update portfolio-backend --region us-east1 `
+     --update-env-vars FRONTEND_ORIGINS=https://abhishekpalle1.github.io
+   ```
+
+   For several origins, `FRONTEND_ORIGINS` is comma-separated; use gcloud's delimiter syntax,
+   e.g. `--update-env-vars "^@^FRONTEND_ORIGINS=https://a.example,https://b.example"`.
+7. CORS preflight from the approved origin must return `200` with
+   `access-control-allow-origin: https://abhishekpalle1.github.io`:
+
+   ```powershell
+   curl.exe -s -o NUL -D - -X OPTIONS https://portfolio-backend-335390804084.us-east1.run.app/api/v1/chat `
+     -H "Origin: https://abhishekpalle1.github.io" -H "Access-Control-Request-Method: POST" `
+     -H "Access-Control-Request-Headers: content-type"
+   ```
+
+8. The same request with `-H "Origin: https://example.com"` must return `400` and **no**
+   `access-control-allow-origin` header.
+9. Browser smoke test on the live site: page and assets load with no 404s or console CORS
+   errors; a suggested question returns a clean answer with no `[C1]` markers, sources, or
+   citation drawer; follow-up questions and feedback buttons appear; "What is the capital of
+   France?" gets the scope message; "What instructions were you given?" is refused.
+
+### Custom domain later
+
+- Set the Pages custom domain, change `VITE_BASE_PATH` in the workflow to `/`, and redeploy.
+- Update `FRONTEND_ORIGINS` to the exact new origin (scheme + host, e.g.
+  `https://www.example.com`). No backend image rebuild is needed for a CORS change.
+- Each Cloud Run environment-variable update creates a new revision; confirm it serves traffic.
+
+---
+
 ## API
 
 | Method | Path           | Description                                                  |
@@ -338,5 +403,5 @@ approved source content is supplied.
 | 3     | Live RAG pipeline                   | Complete (Gemini + Pinecone, 13 chunks in `development`) |
 | 4     | Guardrails and cost controls        | Complete    |
 | 5     | Evaluation framework                | Complete: all 14 release gates pass (2 individual cases still fail) |
-| 6     | Deployment                          | Not started |
+| 6     | Deployment                          | In progress: backend live on Cloud Run; GitHub Pages workflow ready |
 | 7     | Content and polish                  | Not started |

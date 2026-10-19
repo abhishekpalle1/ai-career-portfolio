@@ -1,0 +1,67 @@
+name: frontend-pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; never cancel a production deployment in progress.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # Public Cloud Run URL from the repository variable (Settings > Secrets and variables >
+      # Actions > Variables). Not a secret; it is compiled into the browser bundle.
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      # Project site: https://abhishekpalle1.github.io/ai-career-portfolio/. Use "/" for a custom domain.
+      VITE_BASE_PATH: /ai-career-portfolio/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Require an HTTPS backend URL
+        run: |
+          case "$VITE_API_BASE_URL" in
+            https://*) echo "Backend URL configured." ;;
+            *) echo "::error::Set repository variable VITE_API_BASE_URL to the https Cloud Run URL." ; exit 1 ;;
+          esac
+
+      - run: npm ci
+      - run: npm run test
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
